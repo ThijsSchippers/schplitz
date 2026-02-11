@@ -1026,7 +1026,4 @@ export default function Schplitz() {
   const [view, setView] = useState("landing");
   if (view === "app") return <ExpenseTracker onBack={() => setView("landing")} />;
   return <LandingPage onLaunch={() => setView("app")} />;
-}
-```
-
-</details>
+    }
