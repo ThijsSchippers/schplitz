@@ -15,6 +15,12 @@ const CURRENCIES = {
 const FALLBACK_RATES = { EUR:1, USD:1.04, ALL:113.5, AED:3.82, NOK:11.80, SEK:11.45, THB:38.0 };
 const TOAST_DURATION = 2400;
 
+const STATUS_OPTIONS = [
+  { value: "just_started", label: "Just getting started", emoji: "🌱" },
+  { value: "almost_done", label: "Almost done adding expenses", emoji: "⏳" },
+  { value: "done", label: "Done adding expenses", emoji: "✅" }
+];
+
 async function fetchRates() {
   try {
     const r = await fetch("https://api.frankfurter.app/latest?from=EUR");
@@ -45,6 +51,7 @@ const I = {
   X:      () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
   User:   () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="8" r="4"/></svg>,
   Settled:() => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+  Users:  () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
 };
 
 const fmt = (n, c) => {
@@ -63,31 +70,15 @@ const uid = () => {
 const today = () => new Date().toISOString().split("T")[0];
 
 function validateExpense(e) {
-  if (!e || typeof e !== 'object') {
-    throw new Error('Expense must be an object');
-  }
-  if (!e.id || typeof e.id !== 'string') {
-    throw new Error('Invalid or missing expense ID');
-  }
-  if (!e.description || typeof e.description !== 'string' || !e.description.trim()) {
-    throw new Error('Invalid or missing expense description');
-  }
-  if (typeof e.amount !== 'number' || isNaN(e.amount) || e.amount < 0) {
-    throw new Error('Invalid expense amount');
-  }
-  if (!e.currency || !CURRENCIES[e.currency]) {
-    throw new Error(`Unknown currency: ${e.currency}`);
-  }
-  if (!e.paidBy || typeof e.paidBy !== 'string' || !e.paidBy.trim()) {
-    throw new Error('Invalid or missing paidBy field');
-  }
-  if (!e.date || typeof e.date !== 'string') {
-    throw new Error('Invalid or missing date');
-  }
+  if (!e || typeof e !== 'object') throw new Error('Expense must be an object');
+  if (!e.id || typeof e.id !== 'string') throw new Error('Invalid or missing expense ID');
+  if (!e.description || typeof e.description !== 'string' || !e.description.trim()) throw new Error('Invalid or missing expense description');
+  if (typeof e.amount !== 'number' || isNaN(e.amount) || e.amount < 0) throw new Error('Invalid expense amount');
+  if (!e.currency || !CURRENCIES[e.currency]) throw new Error(`Unknown currency: ${e.currency}`);
+  if (!e.paidBy || typeof e.paidBy !== 'string' || !e.paidBy.trim()) throw new Error('Invalid or missing paidBy field');
+  if (!e.date || typeof e.date !== 'string') throw new Error('Invalid or missing date');
   const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-  if (!dateRegex.test(e.date)) {
-    throw new Error('Invalid date format (expected YYYY-MM-DD)');
-  }
+  if (!dateRegex.test(e.date)) throw new Error('Invalid date format (expected YYYY-MM-DD)');
   return true;
 }
 
@@ -125,60 +116,102 @@ async function decrypt(b64, pass) {
 }
 
 function ExpenseTracker({ onBack }) {
-  const [myName, setMyName]       = useState("");
-  const [confirmed, setConfirmed] = useState(false);
-  const [expenses, setExpenses]   = useState([]);
-  const [form, setForm]           = useState({ description: "", amount: "", currency: "EUR", paidBy: "", date: today() });
-  const [showForm, setShowForm]   = useState(false);
-  const [toast, setToast]         = useState(null);
-  const [modal, setModal]         = useState(null);
-  const [impTab, setImpTab]       = useState("paste");
-  const [impText, setImpText]     = useState("");
-  const [copied, setCopied]       = useState(false);
-  const [expPass, setExpPass]     = useState("");
-  const [expResult, setExpResult] = useState("");
-  const [exporting, setExporting] = useState(false);
-  const [impPass, setImpPass]     = useState("");
+  const [initialized, setInitialized] = useState(false);
+  const [myName, setMyName] = useState("");
+  const [otherName, setOtherName] = useState("");
+  const [securityQuestion, setSecurityQuestion] = useState("");
+  const [securityAnswer, setSecurityAnswer] = useState("");
+  const [myStatus, setMyStatus] = useState("just_started");
+  const [otherStatus, setOtherStatus] = useState(null);
+  
+  const [expenses, setExpenses] = useState([]);
+  const [form, setForm] = useState({ description: "", amount: "", currency: "EUR", date: today() });
+  const [showForm, setShowForm] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [modal, setModal] = useState(null);
+  
+  const [setupMode, setSetupMode] = useState("choice");
+  const [setupMyName, setSetupMyName] = useState("");
+  const [setupOtherName, setSetupOtherName] = useState("");
+  const [setupQuestion, setSetupQuestion] = useState("");
+  const [setupAnswer, setSetupAnswer] = useState("");
+  const [importText, setImportText] = useState("");
+  const [importAnswer, setImportAnswer] = useState("");
   const [importing, setImporting] = useState(false);
-  const [rates, setRates]         = useState(FALLBACK_RATES);
-  const [rSrc, setRSrc]           = useState("fallback");
+  const [detectedQuestion, setDetectedQuestion] = useState("");
+  const [detectedNames, setDetectedNames] = useState([]);
+  
+  const [exportStatus, setExportStatus] = useState("just_started");
+  const [exporting, setExporting] = useState(false);
+  const [exportResult, setExportResult] = useState("");
+  const [copied, setCopied] = useState(false);
+  
+  const [rates, setRates] = useState(FALLBACK_RATES);
+  const [rSrc, setRSrc] = useState("fallback");
   const [loadingRates, setLoadingRates] = useState(true);
-  const fileRef = useRef(null), taRef = useRef(null);
+  const taRef = useRef(null);
 
   useEffect(() => {
-    if (!impText.trim()) { setExpPass(""); return; }
+    if (!importText.trim()) { 
+      setDetectedQuestion(""); 
+      setDetectedNames([]);
+      return; 
+    }
     try {
-      const o = JSON.parse(impText);
-      if (o.v === 2 && o.question) setExpPass(o.question);
-      else setExpPass("");
+      const o = JSON.parse(importText);
+      if (o.v === 3) {
+        setDetectedQuestion(o.question || "");
+        setDetectedNames(o.names || []);
+      } else {
+        setDetectedQuestion("");
+        setDetectedNames([]);
+      }
     } catch (err) {
       console.error("Failed to parse import text:", err);
-      setExpPass("");
+      setDetectedQuestion("");
+      setDetectedNames([]);
     }
-  }, [impText]);
+  }, [importText]);
 
   useEffect(() => {
     const stored = localStorage.getItem("schplitzExpenses");
     if (stored) {
       try {
         const p = JSON.parse(stored);
-        setExpenses(p.expenses || []);
-        if (p.myName) { setMyName(p.myName); setConfirmed(true); }
+        if (p.initialized) {
+          setMyName(p.myName || "");
+          setOtherName(p.otherName || "");
+          setSecurityQuestion(p.securityQuestion || "");
+          setSecurityAnswer(p.securityAnswer || "");
+          setMyStatus(p.myStatus || "just_started");
+          setOtherStatus(p.otherStatus || null);
+          setExpenses(p.expenses || []);
+          setInitialized(true);
+        }
       } catch (err) {
-        console.error("Failed to load expenses from storage:", err);
+        console.error("Failed to load from storage:", err);
       }
     }
   }, []);
 
   useEffect(() => {
-    if (confirmed) {
+    if (initialized) {
       try {
-        localStorage.setItem("schplitzExpenses", JSON.stringify({ myName, expenses }));
+        localStorage.setItem("schplitzExpenses", JSON.stringify({
+          initialized: true,
+          myName,
+          otherName,
+          securityQuestion,
+          securityAnswer,
+          myStatus,
+          otherStatus,
+          expenses
+        }));
       } catch (err) {
-        console.error("Failed to save expenses to storage:", err);
+        console.error("Failed to save to storage:", err);
       }
     }
-  }, [expenses, myName, confirmed]);
+  }, [initialized, myName, otherName, securityQuestion, securityAnswer, myStatus, otherStatus, expenses]);
 
   useEffect(() => { 
     fetchRates().then(l => { 
@@ -196,16 +229,6 @@ function ExpenseTracker({ onBack }) {
     setTimeout(() => setToast(null), TOAST_DURATION); 
   }, []);
 
-  const otherNames = useMemo(() => 
-    [...new Set(expenses.map(e => e.paidBy).filter(n => n && n !== myName))],
-    [expenses, myName]
-  );
-
-  const otherName = useMemo(() => 
-    otherNames.length === 1 ? otherNames[0] : "",
-    [otherNames]
-  );
-
   const summary = useMemo(() => {
     if (!otherName) return null;
     let my = 0, ot = 0;
@@ -218,107 +241,73 @@ function ExpenseTracker({ onBack }) {
   }, [expenses, myName, otherName, rates]);
 
   const addExpense = () => {
-    if (!form.description.trim() || !form.amount || !form.paidBy) return;
-    setExpenses(p => [{ id: uid(), description: form.description.trim(), amount: parseFloat(form.amount), currency: form.currency, paidBy: form.paidBy, date: form.date }, ...p]);
-    setForm({ description: "", amount: "", currency: form.currency, paidBy: form.paidBy, date: today() });
+    if (!form.description.trim() || !form.amount) return;
+    setExpenses(p => [{ 
+      id: uid(), 
+      description: form.description.trim(), 
+      amount: parseFloat(form.amount), 
+      currency: form.currency, 
+      paidBy: myName, 
+      date: form.date 
+    }, ...p]);
+    setForm({ description: "", amount: "", currency: form.currency, date: today() });
     setShowForm(false);
     showToast("Expense added");
   };
 
-  const handleExport = async () => {
-    if (!expPass.trim() || !impPass.trim()) return;
-    if (!expenses.length) { showToast("Nothing to export yet", "info"); return; }
-    setExporting(true);
-    try {
-      const mini = expenses.map(e => ({ i: e.id, d: e.description, a: e.amount, c: e.currency, p: e.paidBy, t: e.date }));
-      const blob = await encrypt(JSON.stringify(mini), impPass.trim());
-      setExpResult(JSON.stringify({ question: expPass.trim(), encrypted: blob, v: 2 }, null, 2));
-    } catch (err) {
-      console.error("Export failed:", err);
-      showToast("Encryption failed", "error");
+  const handleSetupNew = () => {
+    if (!setupMyName.trim() || !setupOtherName.trim() || !setupQuestion.trim() || !setupAnswer.trim()) {
+      showToast("Please fill in all fields", "error");
+      return;
     }
-    setExporting(false);
+    setMyName(setupMyName.trim());
+    setOtherName(setupOtherName.trim());
+    setSecurityQuestion(setupQuestion.trim());
+    setSecurityAnswer(setupAnswer.trim());
+    setMyStatus("just_started");
+    setOtherStatus(null);
+    setExpenses([]);
+    setInitialized(true);
+    showToast("New tally started!");
   };
 
-  const handleCopy = async () => {
-    try { 
-      await navigator.clipboard.writeText(expResult); 
-    } catch (err) { 
-      console.error("Clipboard write failed:", err);
-      if (taRef.current) { 
-        taRef.current.select(); 
-        document.execCommand("copy"); 
-      } 
+  const handleSetupImport = async () => {
+    if (!importText.trim() || !importAnswer.trim() || !setupMyName.trim()) {
+      showToast("Please fill in all fields", "error");
+      return;
     }
-    setCopied(true); 
-    setTimeout(() => setCopied(false), 1800); 
-    showToast("Copied to clipboard");
-  };
-
-  const processImport = async () => {
-    if (!impText.trim() || !impPass.trim()) return;
+    
     setImporting(true);
     try {
-      const o = JSON.parse(impText);
-      if (!o.encrypted) throw new Error("Missing encrypted data");
+      const o = JSON.parse(importText);
+      if (!o.encrypted || o.v !== 3) throw new Error("Invalid import format");
       
-      if (o.v === 2) {
-        if (!o.question) throw new Error("Missing security question");
-        const inner = JSON.parse(await decrypt(o.encrypted, impPass.trim()));
-        if (!Array.isArray(inner)) throw new Error("Invalid data format");
-        
-        const expanded = inner.map(e => ({
-          id: e.i,
-          description: e.d,
-          amount: e.a,
-          currency: e.c,
-          paidBy: e.p,
-          date: e.t
-        }));
-        
-        expanded.forEach((e, idx) => {
-          try {
-            validateExpense(e);
-          } catch (err) {
-            throw new Error(`Invalid expense at index ${idx}: ${err.message}`);
-          }
-        });
-        
-        const ids   = new Set(expenses.map(e => e.id));
-        const fresh = expanded.filter(e => e.id && !ids.has(e.id));
-        if (!fresh.length) { 
-          showToast("No new expenses found", "info"); 
-          setImporting(false); 
-          return; 
+      const decrypted = await decrypt(o.encrypted, importAnswer.trim());
+      const data = JSON.parse(decrypted);
+      
+      if (!Array.isArray(data.expenses)) throw new Error("Invalid data format");
+      
+      data.expenses.forEach((e, idx) => {
+        try {
+          validateExpense(e);
+        } catch (err) {
+          throw new Error(`Invalid expense at index ${idx}: ${err.message}`);
         }
-        setExpenses(p => [...p, ...fresh]);
-        showToast(`Imported ${fresh.length} expense${fresh.length > 1 ? "s" : ""}`);
-        setModal(null); setImpText(""); setImpPass(""); setExpPass("");
-      }
-      else if (o.v === 1) {
-        const inner = JSON.parse(await decrypt(o.encrypted, impPass.trim()));
-        if (!Array.isArray(inner.expenses)) throw new Error("Invalid v1 data format");
-        
-        inner.expenses.forEach((e, idx) => {
-          try {
-            validateExpense(e);
-          } catch (err) {
-            throw new Error(`Invalid expense at index ${idx}: ${err.message}`);
-          }
-        });
-        
-        const ids   = new Set(expenses.map(e => e.id));
-        const fresh = inner.expenses.filter(e => e.id && !ids.has(e.id));
-        if (!fresh.length) { 
-          showToast("No new expenses found", "info"); 
-          setImporting(false); 
-          return; 
-        }
-        setExpenses(p => [...p, ...fresh]);
-        showToast(`Imported ${fresh.length} expense${fresh.length > 1 ? "s" : ""}`);
-        setModal(null); setImpText(""); setImpPass(""); setExpPass("");
-      }
-      else throw new Error("Unsupported data version");
+      });
+      
+      const names = o.names || [];
+      const otherPersonName = names.find(n => n !== setupMyName.trim()) || "";
+      
+      setMyName(setupMyName.trim());
+      setOtherName(otherPersonName);
+      setSecurityQuestion(o.question || "");
+      setSecurityAnswer(importAnswer.trim());
+      setMyStatus("just_started");
+      setOtherStatus(data.status || null);
+      setExpenses(data.expenses || []);
+      setInitialized(true);
+      
+      showToast(`Imported ${data.expenses.length} expense${data.expenses.length !== 1 ? 's' : ''}!`);
     } catch (err) {
       console.error("Import failed:", err);
       showToast(
@@ -331,106 +320,277 @@ function ExpenseTracker({ onBack }) {
     setImporting(false);
   };
 
-  const handleFile = e => {
-    const f = e.target.files?.[0]; if (!f) return;
-    const r = new FileReader();
-    r.onload = ev => { setImpText(ev.target.result); setImpTab("paste"); };
-    r.onerror = () => {
-      console.error("Failed to read file");
-      showToast("Failed to read file", "error");
-    };
-    r.readAsText(f); e.target.value = "";
+  const handleExport = async () => {
+    if (!expenses.length) { 
+      showToast("Nothing to export yet", "info"); 
+      return; 
+    }
+    
+    setExporting(true);
+    try {
+      const dataToExport = {
+        expenses: expenses.map(e => ({
+          i: e.id,
+          d: e.description,
+          a: e.amount,
+          c: e.currency,
+          p: e.paidBy,
+          t: e.date
+        })),
+        status: exportStatus
+      };
+      
+      const encrypted = await encrypt(JSON.stringify(dataToExport), securityAnswer);
+      
+      setExportResult(JSON.stringify({
+        v: 3,
+        question: securityQuestion,
+        names: [myName, otherName],
+        encrypted
+      }, null, 2));
+      
+      setMyStatus(exportStatus);
+    } catch (err) {
+      console.error("Export failed:", err);
+      showToast("Export failed", "error");
+    }
+    setExporting(false);
   };
 
-  if (!confirmed) return (
-    <div style={S.nameScreen}>
-      <button onClick={onBack} style={S.backBtn}>← Back</button>
-      <div style={S.nameCard}>
-        <div style={S.nameIconWrap}>
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#e8d44d" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-          </svg>
+  const handleCopy = async () => {
+    try { 
+      await navigator.clipboard.writeText(exportResult); 
+    } catch (err) { 
+      console.error("Clipboard write failed:", err);
+      if (taRef.current) { 
+        taRef.current.select(); 
+        document.execCommand("copy"); 
+      } 
+    }
+    setCopied(true); 
+    setTimeout(() => setCopied(false), 1800); 
+    showToast("Copied to clipboard");
+  };
+
+  if (!initialized) return (
+    <div style={S.setupOverlay}>
+      <div style={S.setupCard}>
+        <div style={S.setupHeader}>
+          <h2 style={S.setupTitle}>Welcome to Schplitz</h2>
+          <p style={S.setupSub}>How would you like to start?</p>
         </div>
-        <h1 style={S.nameTitle}>Schplitz</h1>
-        <p style={S.nameSub}>Track shared costs and settle up easily.</p>
-        <input autoFocus value={myName} onChange={e => setMyName(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && myName.trim() && (setMyName(myName.trim()), setConfirmed(true))}
-          placeholder="Your name" style={S.nameInput} />
-        <button onClick={() => { if (myName.trim()) { setMyName(myName.trim()); setConfirmed(true); } }} style={S.nameBtn}>Get Started</button>
+
+        {setupMode === "choice" && (
+          <div style={S.choiceGrid}>
+            <button onClick={() => setSetupMode("new")} style={S.choiceBtn}>
+              <I.Users />
+              <span style={S.choiceBtnTitle}>Start New Tally</span>
+              <span style={S.choiceBtnDesc}>Begin tracking expenses with someone</span>
+            </button>
+            <button onClick={() => setSetupMode("import")} style={S.choiceBtn}>
+              <I.Up />
+              <span style={S.choiceBtnTitle}>Import Existing</span>
+              <span style={S.choiceBtnDesc}>Continue from encrypted data</span>
+            </button>
+          </div>
+        )}
+
+        {setupMode === "new" && (
+          <div style={S.setupForm}>
+            <button onClick={() => setSetupMode("choice")} style={S.backLink}>← Back</button>
+            
+            <div style={S.setupField}>
+              <label style={S.setupLabel}>Your name</label>
+              <input 
+                autoFocus
+                value={setupMyName} 
+                onChange={e => setSetupMyName(e.target.value)}
+                placeholder="e.g., Alex"
+                style={S.setupInput} 
+              />
+            </div>
+
+            <div style={S.setupField}>
+              <label style={S.setupLabel}>Other person's name</label>
+              <input 
+                value={setupOtherName} 
+                onChange={e => setSetupOtherName(e.target.value)}
+                placeholder="e.g., Jordan"
+                style={S.setupInput} 
+              />
+            </div>
+
+            <div style={S.setupDivider} />
+
+            <div style={S.setupField}>
+              <label style={S.setupLabel}>Security question</label>
+              <input 
+                value={setupQuestion} 
+                onChange={e => setSetupQuestion(e.target.value)}
+                placeholder="e.g., Where did we meet?"
+                style={S.setupInput} 
+              />
+            </div>
+
+            <div style={S.setupField}>
+              <label style={S.setupLabel}>Answer (keep this secret!)</label>
+              <input 
+                type="password"
+                value={setupAnswer} 
+                onChange={e => setSetupAnswer(e.target.value)}
+                placeholder="Only you two should know"
+                style={S.setupInput} 
+              />
+            </div>
+
+            <button 
+              onClick={handleSetupNew}
+              disabled={!setupMyName.trim() || !setupOtherName.trim() || !setupQuestion.trim() || !setupAnswer.trim()}
+              style={{ 
+                ...S.setupSubmit, 
+                ...(!setupMyName.trim() || !setupOtherName.trim() || !setupQuestion.trim() || !setupAnswer.trim() ? S.disabled : {}) 
+              }}
+            >
+              Start Tracking
+            </button>
+          </div>
+        )}
+
+        {setupMode === "import" && (
+          <div style={S.setupForm}>
+            <button onClick={() => setSetupMode("choice")} style={S.backLink}>← Back</button>
+            
+            <div style={S.setupField}>
+              <label style={S.setupLabel}>Paste encrypted data</label>
+              <textarea 
+                autoFocus
+                value={importText} 
+                onChange={e => setImportText(e.target.value)}
+                placeholder="Paste the encrypted JSON here..."
+                style={S.setupTextarea} 
+              />
+            </div>
+
+            {detectedQuestion && (
+              <div style={S.detectedQ}>
+                <strong>Security Question:</strong> {detectedQuestion}
+              </div>
+            )}
+
+            <div style={S.setupField}>
+              <label style={S.setupLabel}>Answer</label>
+              <input 
+                type="password"
+                value={importAnswer} 
+                onChange={e => setImportAnswer(e.target.value)}
+                placeholder="Enter the answer"
+                style={S.setupInput} 
+              />
+            </div>
+
+            <div style={S.setupField}>
+              <label style={S.setupLabel}>Your name</label>
+              {detectedNames.length > 0 ? (
+                <div style={S.nameButtons}>
+                  {detectedNames.map(name => (
+                    <button
+                      key={name}
+                      onClick={() => setSetupMyName(name)}
+                      style={{
+                        ...S.nameBtn,
+                        ...(setupMyName === name ? S.nameBtnActive : {})
+                      }}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <input 
+                  value={setupMyName} 
+                  onChange={e => setSetupMyName(e.target.value)}
+                  placeholder="Your name"
+                  style={S.setupInput} 
+                />
+              )}
+            </div>
+
+            <button 
+              onClick={handleSetupImport}
+              disabled={!importText.trim() || !importAnswer.trim() || !setupMyName.trim() || importing}
+              style={{ 
+                ...S.setupSubmit, 
+                ...(!importText.trim() || !importAnswer.trim() || !setupMyName.trim() || importing ? S.disabled : {}) 
+              }}
+            >
+              {importing ? "Decrypting..." : "Import & Continue"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
 
   const disabledStyle = { opacity: 0.35, cursor: "not-allowed" };
+  
   return (
     <div style={S.root}>
       {toast && <div style={{ ...S.toast, background: toast.type === "error" ? "#c0392b" : toast.type === "info" ? "#2980b9" : "#27ae60" }}>{toast.msg}</div>}
 
-      {modal && (
+      {modal === "export" && (
         <div style={S.overlay} onClick={() => setModal(null)}>
           <div style={S.modalCard} onClick={e => e.stopPropagation()}>
             <div style={S.modalHdr}>
-              <span style={S.modalTitle}>{modal === "export" ? "Export Expenses" : "Import Expenses"}</span>
+              <span style={S.modalTitle}>Export Expenses</span>
               <button onClick={() => setModal(null)} style={S.modalX}><I.X /></button>
             </div>
-            {modal === "export" && (<>
-              <p style={S.modalDesc}>Create a security question only the other person can answer.</p>
-              <input autoFocus placeholder="Security question (e.g., Where did we meet?)" value={expPass}
-                onChange={e => { setExpPass(e.target.value); setExpResult(""); }}
-                style={{ ...S.input, width: "100%", marginBottom: 12 }} />
-              <input type="password" placeholder="Answer (used to encrypt)" value={impPass}
-                onChange={e => { setImpPass(e.target.value); setExpResult(""); }}
-                onKeyDown={e => e.key === "Enter" && handleExport()}
-                style={{ ...S.input, width: "100%", marginBottom: 12 }} />
-              {!expResult ? (
-                <button onClick={handleExport} disabled={!expPass.trim() || !impPass.trim() || exporting}
-                  style={{ ...S.copyBtn, ...(!expPass.trim() || !impPass.trim() || exporting ? disabledStyle : {}) }}>
+
+            {!exportResult ? (
+              <>
+                <p style={S.modalDesc}>Select your status and export encrypted data to share with {otherName}.</p>
+                
+                <div style={S.statusGrid}>
+                  {STATUS_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setExportStatus(opt.value)}
+                      style={{
+                        ...S.statusBtn,
+                        ...(exportStatus === opt.value ? S.statusBtnActive : {})
+                      }}
+                    >
+                      <span style={S.statusEmoji}>{opt.emoji}</span>
+                      <span style={S.statusLabel}>{opt.label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <button 
+                  onClick={handleExport} 
+                  disabled={exporting}
+                  style={{ ...S.copyBtn, ...(exporting ? disabledStyle : {}) }}
+                >
                   {exporting ? "Encrypting…" : "Encrypt & Export"}
                 </button>
-              ) : (<>
-                <p style={{ ...S.modalDesc, marginBottom: 8 }}>Encrypted — safe to copy and send.</p>
-                <textarea ref={taRef} readOnly value={expResult} style={S.expTA} />
+              </>
+            ) : (
+              <>
+                <p style={{ ...S.modalDesc, marginBottom: 8 }}>Encrypted — safe to copy and send to {otherName}.</p>
+                <textarea ref={taRef} readOnly value={exportResult} style={S.expTA} />
                 <button onClick={handleCopy} style={S.copyBtn}>
                   {copied ? <><I.Chk /> Copied!</> : <><I.Copy /> Copy to Clipboard</>}
                 </button>
-              </>)}
-            </>)}
-            {modal === "import" && (<>
-              <div style={S.tabRow}>
-                <button onClick={() => setImpTab("paste")} style={{ ...S.tab, ...(impTab === "paste" ? S.tabAct : {}) }}>Paste Data</button>
-                <button onClick={() => setImpTab("file")}  style={{ ...S.tab, ...(impTab === "file"  ? S.tabAct : {}) }}>Upload File</button>
-              </div>
-              {impTab === "paste" ? (
-                <p style={S.modalDesc}>Paste the encrypted data from the other person.</p>
-              ) : (<>
-                <p style={S.modalDesc}>Select a previously exported <code style={{ color: "#e8d44d", background: "#e8d44d15", padding: "2px 6px", borderRadius: 4 }}>.json</code> file.</p>
-                <input ref={fileRef} type="file" accept=".json" onChange={handleFile} style={{ display: "none" }} />
-                <button onClick={() => fileRef.current?.click()} style={{ ...S.copyBtn, marginBottom: 12 }}><I.Up /> Choose File</button>
-              </>)}
-              {(impTab === "paste" || impText) && (<>
-                <textarea value={impText} onChange={e => { setImpText(e.target.value); setExpPass(""); }} placeholder="Paste encrypted data here…" style={S.impTA} />
-                {expPass && <div style={S.secQ}><strong>Security Question:</strong> {expPass}</div>}
-                <input type="password" placeholder="Answer" value={impPass}
-                  onChange={e => setImpPass(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && processImport()}
-                  style={{ ...S.input, width: "100%", marginBottom: 12 }} />
-                <button onClick={processImport} disabled={!impText.trim() || !impPass.trim() || importing}
-                  style={{ ...S.copyBtn, ...(!impText.trim() || !impPass.trim() || importing ? disabledStyle : {}) }}>
-                  <I.Up /> {importing ? "Decrypting…" : "Decrypt & Import"}
-                </button>
-              </>)}
-            </>)}
+              </>
+            )}
           </div>
         </div>
       )}
 
       <header style={S.header}>
         <span style={S.hdrName}><I.User /> {myName}</span>
-        <div style={S.hdrActs}>
-          <button onClick={() => { setImpTab("paste"); setImpText(""); setImpPass(""); setExpPass(""); setModal("import"); }} style={S.hdrBtn}><I.Up /> Import</button>
-          <button onClick={() => { setExpPass(""); setImpPass(""); setExpResult(""); setModal("export"); }} style={{ ...S.hdrBtn, ...S.hdrBtnExp }}><I.Down /> Export</button>
-        </div>
+        <button onClick={() => { setExportResult(""); setExportStatus(myStatus); setModal("export"); }} style={S.hdrBtnExp}>
+          <I.Down /> Export
+        </button>
       </header>
 
       {summary && (
@@ -449,6 +609,25 @@ function ExpenseTracker({ onBack }) {
                 {summary.myBalance === 0 && <span style={S.settledBadge}><I.Settled /> Settled</span>}
               </div>
             </div>
+            
+            <div style={S.statusRow}>
+              <div style={S.statusItem}>
+                <span style={S.statusPerson}>{myName}</span>
+                <span style={S.statusBadge}>
+                  {STATUS_OPTIONS.find(s => s.value === myStatus)?.emoji} {STATUS_OPTIONS.find(s => s.value === myStatus)?.label}
+                </span>
+              </div>
+              <div style={S.statusItem}>
+                <span style={S.statusPerson}>{otherName}</span>
+                <span style={S.statusBadge}>
+                  {otherStatus 
+                    ? `${STATUS_OPTIONS.find(s => s.value === otherStatus)?.emoji} ${STATUS_OPTIONS.find(s => s.value === otherStatus)?.label}`
+                    : "⏸️ No expenses yet"
+                  }
+                </span>
+              </div>
+            </div>
+
             <div style={S.sumRow}>
               <div style={S.sumP}><span style={S.sumPN}>{myName}</span><span style={S.sumPA}>{fmt(summary.myTotal, "EUR")}</span></div>
               <div style={S.sumDiv} />
@@ -469,20 +648,34 @@ function ExpenseTracker({ onBack }) {
         <button onClick={() => setShowForm(true)} style={S.addBtn}><I.Plus /> Add Expense</button>
       ) : (
         <div style={S.formCard}>
-          <div style={S.fRow}><input autoFocus placeholder="What was it for?" value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} style={{ ...S.input, flex: 1 }} /></div>
           <div style={S.fRow}>
-            <input type="number" min="0" step="0.01" placeholder="0.00" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))} style={{ ...S.input, width: 110 }} />
-            <select value={form.currency} onChange={e => setForm(p => ({ ...p, currency: e.target.value }))} style={S.select}>
-              {Object.entries(CURRENCIES).map(([c, { symbol, name }]) => <option key={c} value={c}>{symbol} {c} — {name}</option>)}
-            </select>
+            <input 
+              autoFocus 
+              placeholder="What was it for?" 
+              value={form.description} 
+              onChange={e => setForm(p => ({ ...p, description: e.target.value }))} 
+              style={{ ...S.input, flex: 1 }} 
+            />
           </div>
           <div style={S.fRow}>
-            <label style={S.label}>Paid by</label>
-            <div style={S.pbRow}>
-              <button onClick={() => setForm(p => ({ ...p, paidBy: myName }))} style={{ ...S.pbBtn, ...(form.paidBy === myName ? S.pbAct : {}) }}>{myName}</button>
-              {otherName && <button onClick={() => setForm(p => ({ ...p, paidBy: otherName }))} style={{ ...S.pbBtn, ...(form.paidBy === otherName ? S.pbAct : {}) }}>{otherName}</button>}
-              {!otherName && form.paidBy !== myName && <input placeholder="Other person's name" value={form.paidBy} onChange={e => setForm(p => ({ ...p, paidBy: e.target.value }))} style={{ ...S.input, flex: 1, fontSize: 13 }} />}
-            </div>
+            <input 
+              type="number" 
+              min="0" 
+              step="0.01" 
+              placeholder="0.00" 
+              value={form.amount} 
+              onChange={e => setForm(p => ({ ...p, amount: e.target.value }))} 
+              style={{ ...S.input, width: 110 }} 
+            />
+            <select 
+              value={form.currency} 
+              onChange={e => setForm(p => ({ ...p, currency: e.target.value }))} 
+              style={S.select}
+            >
+              {Object.entries(CURRENCIES).map(([c, { symbol, name }]) => 
+                <option key={c} value={c}>{symbol} {c} — {name}</option>
+              )}
+            </select>
           </div>
           <div style={S.fRow}>
             <label style={S.label}>Date</label>
@@ -496,8 +689,11 @@ function ExpenseTracker({ onBack }) {
           </div>
           <div style={S.fActs}>
             <button onClick={() => setShowForm(false)} style={S.cancelBtn}>Cancel</button>
-            <button onClick={addExpense} disabled={!form.description.trim() || !form.amount || !form.paidBy}
-              style={{ ...S.submitBtn, ...(!form.description.trim() || !form.amount || !form.paidBy ? disabledStyle : {}) }}>
+            <button 
+              onClick={addExpense} 
+              disabled={!form.description.trim() || !form.amount}
+              style={{ ...S.submitBtn, ...(!form.description.trim() || !form.amount ? disabledStyle : {}) }}
+            >
               <I.Plus /> Add
             </button>
           </div>
@@ -508,7 +704,7 @@ function ExpenseTracker({ onBack }) {
         {expenses.length === 0 ? (
           <div style={S.empty}>
             <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#3a3a4a" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-            <p style={S.emptyT}>No expenses yet. Add one above, or import from the other person.</p>
+            <p style={S.emptyT}>No expenses yet. Add one above.</p>
           </div>
         ) : expenses.map(e => (
           <div key={e.id} style={S.expItem}>
@@ -530,13 +726,17 @@ function ExpenseTracker({ onBack }) {
 
       <div style={S.footer}>
         <button onClick={() => { 
-          setExpenses([]); 
-          setMyName(""); 
-          setConfirmed(false); 
-          try { 
-            localStorage.removeItem("schplitzExpenses"); 
-          } catch (err) {
-            console.error("Failed to delete storage:", err);
+          if (window.confirm("This will delete all data and start over. Are you sure?")) {
+            setInitialized(false);
+            setMyName("");
+            setOtherName("");
+            setSecurityQuestion("");
+            setSecurityAnswer("");
+            setMyStatus("just_started");
+            setOtherStatus(null);
+            setExpenses([]);
+            setSetupMode("choice");
+            localStorage.removeItem("schplitzExpenses");
           }
         }} style={S.resetBtn}>Reset everything</button>
       </div>
@@ -575,6 +775,18 @@ function LandingPage({ onLaunch }) {
         </div>
       </section>
 
+      <section style={L.imageSection}>
+        <div style={L.imageWrap}>
+          <img 
+            src="/images/coffee-chat.jpg" 
+            alt="Two people having coffee" 
+            style={L.image}
+            loading="lazy"
+          />
+          <p style={L.imageCaption}>Your expenses. Your conversations. Private.</p>
+        </div>
+      </section>
+
       <section style={L.section}>
         <div style={L.sectionHead}>
           <span style={L.eyebrow}>the uncomfortable truth</span>
@@ -595,6 +807,18 @@ function LandingPage({ onLaunch }) {
         </div>
       </section>
 
+      <section style={L.imageSection}>
+        <div style={L.imageWrap}>
+          <img 
+            src="/images/beach-friends.jpg" 
+            alt="Friends enjoying time together" 
+            style={L.image}
+            loading="lazy"
+          />
+          <p style={L.imageCaption}>Built for the people who matter. Not the platforms that don't.</p>
+        </div>
+      </section>
+
       <div style={L.quoteWrap}>
         <div style={L.quoteInner}>
           <div style={L.quoteLine} />
@@ -602,6 +826,42 @@ function LandingPage({ onLaunch }) {
           <span style={L.quoteAttr}>— the only server Schplitz uses is your device</span>
         </div>
       </div>
+
+      <section style={L.imageSection}>
+        <div style={L.imageWrap}>
+          <img 
+            src="/images/hiking.jpg" 
+            alt="Two people hiking" 
+            style={L.image}
+            loading="lazy"
+          />
+          <p style={L.imageCaption}>Whether it's a weekend trip or daily coffee runs — track it together, privately.</p>
+        </div>
+      </section>
+
+      <section style={L.imageSection}>
+        <div style={L.imageWrap}>
+          <img 
+            src="/images/sunset-couple.jpg" 
+            alt="Couple watching sunset" 
+            style={L.image}
+            loading="lazy"
+          />
+          <p style={L.imageCaption}>Your shared moments shouldn't be someone else's data.</p>
+        </div>
+      </section>
+
+      <section style={L.imageSection}>
+        <div style={L.imageWrap}>
+          <img 
+            src="/images/managing-finances.jpg" 
+            alt="Couple managing finances" 
+            style={L.image}
+            loading="lazy"
+          />
+          <p style={L.imageCaption}>Simple. Secure. Just between you two.</p>
+        </div>
+      </section>
 
       <section style={L.ctaSection}>
         <div style={L.ctaGlow} />
@@ -624,14 +884,29 @@ function LandingPage({ onLaunch }) {
 }
 
 const S = {
-  backBtn: { position: "fixed", top: 18, left: 20, background: "none", border: "none", color: "#e8d44d", fontSize: 13, fontWeight: 600, cursor: "pointer", zIndex: 10 },
-  nameScreen: { minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#0f0f13", padding: 24 },
-  nameCard: { background: "#1a1a24", border: "1px solid #2a2a3a", borderRadius: 20, padding: "48px 40px", maxWidth: 420, width: "100%", textAlign: "center" },
-  nameIconWrap: { marginBottom: 24 },
-  nameTitle: { fontSize: 28, fontWeight: 700, color: "#fff", margin: "0 0 8px", fontFamily: "Georgia,serif", letterSpacing: "-0.5px" },
-  nameSub: { fontSize: 14, color: "#7a7a8a", margin: "0 0 28px", lineHeight: 1.5 },
-  nameInput: { width: "100%", padding: "14px 18px", background: "#12121a", border: "1px solid #2e2e3e", borderRadius: 10, color: "#fff", fontSize: 16, outline: "none", marginBottom: 14 },
-  nameBtn: { width: "100%", padding: 14, background: "#e8d44d", border: "none", borderRadius: 10, color: "#0f0f13", fontSize: 15, fontWeight: 700, cursor: "pointer" },
+  setupOverlay: { position: "fixed", inset: 0, background: "#0f0f13", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 },
+  setupCard: { background: "#1a1a24", border: "1px solid #2a2a3a", borderRadius: 20, padding: "32px 28px", maxWidth: 480, width: "100%", maxHeight: "90vh", overflowY: "auto" },
+  setupHeader: { textAlign: "center", marginBottom: 32 },
+  setupTitle: { fontSize: 24, fontWeight: 700, color: "#fff", margin: "0 0 8px", fontFamily: "Georgia,serif" },
+  setupSub: { fontSize: 14, color: "#7a7a8a", margin: 0 },
+  choiceGrid: { display: "grid", gap: 12 },
+  choiceBtn: { background: "#12121a", border: "1px solid #2e2e3e", borderRadius: 12, padding: "20px 18px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 8, transition: "border-color .2s, background .2s", color: "#fff" },
+  choiceBtnTitle: { fontSize: 16, fontWeight: 600, color: "#fff" },
+  choiceBtnDesc: { fontSize: 13, color: "#7a7a8a", lineHeight: 1.4 },
+  setupForm: { display: "flex", flexDirection: "column", gap: 16 },
+  backLink: { background: "none", border: "none", color: "#e8d44d", fontSize: 13, fontWeight: 600, cursor: "pointer", alignSelf: "flex-start", padding: 0 },
+  setupField: { display: "flex", flexDirection: "column", gap: 6 },
+  setupLabel: { fontSize: 12, color: "#8a8a9a", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.6px" },
+  setupInput: { padding: "12px 14px", background: "#12121a", border: "1px solid #2e2e3e", borderRadius: 8, color: "#fff", fontSize: 15, outline: "none" },
+  setupTextarea: { padding: "12px 14px", background: "#12121a", border: "1px solid #2e2e3e", borderRadius: 8, color: "#fff", fontSize: 13, outline: "none", minHeight: 120, resize: "vertical", fontFamily: "monospace" },
+  setupDivider: { height: 1, background: "#2e2e3e", margin: "8px 0" },
+  setupSubmit: { padding: "14px 20px", background: "#e8d44d", border: "none", borderRadius: 10, color: "#0f0f13", fontSize: 15, fontWeight: 700, cursor: "pointer", marginTop: 8 },
+  disabled: { opacity: 0.35, cursor: "not-allowed" },
+  detectedQ: { background: "#e8d44d15", border: "1px solid #e8d44d33", borderRadius: 8, padding: "12px 14px", fontSize: 13, color: "#e8d44d", lineHeight: 1.5 },
+  nameButtons: { display: "flex", gap: 8, flexWrap: "wrap" },
+  nameBtn: { padding: "10px 18px", background: "#12121a", border: "1px solid #2e2e3e", borderRadius: 8, color: "#8a8a9a", fontSize: 14, fontWeight: 600, cursor: "pointer" },
+  nameBtnActive: { background: "#e8d44d22", border: "1px solid #e8d44d55", color: "#e8d44d" },
+  
   root: { minHeight: "100vh", background: "#0f0f13", color: "#fff", maxWidth: 560, margin: "0 auto", padding: "0 0 40px" },
   toast: { position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", color: "#fff", padding: "10px 24px", borderRadius: 8, fontSize: 13, fontWeight: 600, zIndex: 200, boxShadow: "0 4px 20px rgba(0,0,0,.4)" },
   overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 150, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 },
@@ -640,18 +915,18 @@ const S = {
   modalTitle: { fontSize: 17, fontWeight: 700, color: "#fff" },
   modalX: { background: "none", border: "none", color: "#6a6a7a", cursor: "pointer", display: "flex", alignItems: "center", padding: 2 },
   modalDesc: { fontSize: 13, color: "#7a7a8a", margin: "0 0 16px", lineHeight: 1.5 },
+  statusGrid: { display: "grid", gap: 8, marginBottom: 16 },
+  statusBtn: { padding: "12px 14px", background: "#12121a", border: "1px solid #2e2e3e", borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 10, transition: "border-color .2s, background .2s" },
+  statusBtnActive: { background: "#e8d44d15", borderColor: "#e8d44d55" },
+  statusEmoji: { fontSize: 20 },
+  statusLabel: { fontSize: 14, color: "#ddd", fontWeight: 500 },
   expTA: { width: "100%", minHeight: 140, maxHeight: 220, background: "#12121a", border: "1px solid #2e2e3e", borderRadius: 8, color: "#8dd68d", fontSize: 12, padding: 12, fontFamily: "monospace", resize: "vertical", outline: "none", marginBottom: 14 },
-  impTA: { width: "100%", minHeight: 140, background: "#12121a", border: "1px solid #2e2e3e", borderRadius: 8, color: "#ddd", fontSize: 13, padding: 12, fontFamily: "monospace", resize: "vertical", outline: "none", marginBottom: 14 },
-  secQ: { background: "#e8d44d15", border: "1px solid #e8d44d33", borderRadius: 8, padding: "12px 14px", marginBottom: 14, fontSize: 13, color: "#e8d44d", lineHeight: 1.5 },
   copyBtn: { width: "100%", padding: 11, background: "#e8d44d", border: "none", borderRadius: 9, color: "#0f0f13", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 },
-  tabRow: { display: "flex", gap: 6, marginBottom: 18, background: "#12121a", borderRadius: 8, padding: 4 },
-  tab: { flex: 1, padding: "7px 0", background: "transparent", border: "none", borderRadius: 6, color: "#6a6a7a", fontSize: 13, fontWeight: 600, cursor: "pointer" },
-  tabAct: { background: "#1a1a24", color: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,.3)" },
+  
   header: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 20px", borderBottom: "1px solid #1e1e2a" },
   hdrName: { fontSize: 14, color: "#aaa", display: "flex", alignItems: "center", gap: 6 },
-  hdrActs: { display: "flex", gap: 8 },
-  hdrBtn: { display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", background: "transparent", border: "1px solid #2e2e3e", borderRadius: 7, color: "#aaa", fontSize: 12, fontWeight: 600, cursor: "pointer" },
-  hdrBtnExp: { borderColor: "#e8d44d55", color: "#e8d44d" },
+  hdrBtnExp: { display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", background: "transparent", border: "1px solid #e8d44d55", borderRadius: 7, color: "#e8d44d", fontSize: 12, fontWeight: 600, cursor: "pointer" },
+  
   sumWrap: { padding: "16px 20px" },
   sumCard: { background: "#1a1a24", border: "1px solid #2a2a3a", borderRadius: 14, padding: 18 },
   sumTop: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
@@ -659,6 +934,10 @@ const S = {
   sumLabel: { fontSize: 12, color: "#6a6a7a", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.8px" },
   settledBadge: { display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#4caf50", background: "#4caf5018", padding: "3px 8px", borderRadius: 20, fontWeight: 600 },
   rBadge: { fontSize: 10, fontWeight: 600 },
+  statusRow: { display: "flex", gap: 12, marginBottom: 14, flexWrap: "wrap" },
+  statusItem: { flex: 1, minWidth: "45%", display: "flex", flexDirection: "column", gap: 4 },
+  statusPerson: { fontSize: 11, color: "#6a6a7a", fontWeight: 600 },
+  statusBadge: { fontSize: 11, color: "#e8d44d", background: "#e8d44d15", padding: "4px 8px", borderRadius: 6, display: "inline-block" },
   sumRow: { display: "flex", alignItems: "stretch" },
   sumP: { flex: 1, display: "flex", flexDirection: "column", gap: 2 },
   sumPN: { fontSize: 13, color: "#aaa", fontWeight: 500 },
@@ -667,18 +946,17 @@ const S = {
   owesRow: { marginTop: 12, paddingTop: 12, borderTop: "1px solid #222", fontSize: 13, color: "#8a8a9a", textAlign: "center" },
   owesN: { color: "#e8d44d", fontWeight: 600 },
   owesA: { color: "#fff", fontSize: 14 },
+  
   addBtn: { margin: "20px 20px 0", width: "calc(100% - 40px)", padding: 14, background: "#e8d44d", border: "none", borderRadius: 12, color: "#0f0f13", fontSize: 15, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 },
   formCard: { margin: "16px 20px 0", background: "#1a1a24", border: "1px solid #2a2a3a", borderRadius: 14, padding: 20 },
   fRow: { marginBottom: 12, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" },
   input: { padding: "10px 14px", background: "#12121a", border: "1px solid #2e2e3e", borderRadius: 8, color: "#fff", fontSize: 14, outline: "none" },
   select: { padding: "10px 14px", background: "#12121a", border: "1px solid #2e2e3e", borderRadius: 8, color: "#fff", fontSize: 13, outline: "none", flex: 1, minWidth: 140 },
   label: { fontSize: 11, color: "#6a6a7a", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.6px", width: 52, flexShrink: 0 },
-  pbRow: { display: "flex", gap: 8, flex: 1, flexWrap: "wrap" },
-  pbBtn: { padding: "8px 16px", background: "#12121a", border: "1px solid #2e2e3e", borderRadius: 8, color: "#8a8a9a", fontSize: 13, fontWeight: 600, cursor: "pointer" },
-  pbAct: { background: "#e8d44d22", border: "1px solid #e8d44d55", color: "#e8d44d" },
   fActs: { display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 },
   cancelBtn: { padding: "8px 18px", background: "transparent", border: "1px solid #2e2e3e", borderRadius: 8, color: "#8a8a9a", fontSize: 13, fontWeight: 600, cursor: "pointer" },
   submitBtn: { padding: "8px 22px", background: "#e8d44d", border: "none", borderRadius: 8, color: "#0f0f13", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 },
+  
   listWrap: { padding: "16px 20px 0" },
   expItem: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "1px solid #1e1e2a" },
   expL: { display: "flex", flexDirection: "column", gap: 3, flex: 1, minWidth: 0 },
@@ -691,7 +969,8 @@ const S = {
   expAmt: { fontSize: 15, fontWeight: 700, color: "#fff", fontFamily: "Georgia,serif" },
   expAmtG: { display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 1 },
   expAmtEur: { fontSize: 11, color: "#6a6a7a", fontStyle: "italic" },
-  delBtn: { background: "none", border: "none", color: "#4a4a5a", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 4, borderRadius: 4, transition: "color .15s" },
+  delBtn: { background: "none", border: "none", color: "#4a4a5a", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 4, borderRadius: 4 },
+  
   empty: { display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "60px 20px" },
   emptyT: { fontSize: 14, color: "#5a5a6a", textAlign: "center", lineHeight: 1.5, maxWidth: 320 },
   footer: { textAlign: "center", marginTop: 40 },
@@ -702,7 +981,7 @@ const L = {
   page: { background: "#0a0a0e", color: "#fff", fontFamily: "Georgia,serif", minHeight: "100vh", overflowX: "hidden" },
   nav: { position: "sticky", top: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 36px", background: "rgba(10,10,14,0.88)", backdropFilter: "blur(14px)", borderBottom: "1px solid rgba(255,255,255,0.07)" },
   logo: { fontSize: 22, fontWeight: 700, color: "#fff", letterSpacing: "-0.5px" },
-  navCta: { padding: "8px 22px", background: "transparent", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 8, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "border-color .2s, background .2s" },
+  navCta: { padding: "8px 22px", background: "transparent", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 8, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" },
   hero: { position: "relative", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "140px 40px 100px", overflow: "hidden" },
   glowA: { position: "absolute", top: "-25%", left: "-8%", width: "55%", height: "75%", background: "radial-gradient(ellipse, rgba(232,212,77,0.09) 0%, transparent 70%)", pointerEvents: "none" },
   glowB: { position: "absolute", bottom: "-15%", right: "-6%", width: "45%", height: "55%", background: "radial-gradient(ellipse, rgba(59,130,246,0.055) 0%, transparent 70%)", pointerEvents: "none" },
@@ -712,8 +991,14 @@ const L = {
   accent: { color: "#e8d44d" },
   heroP: { fontSize: 17, lineHeight: 1.7, color: "#7a7a8a", maxWidth: 540, margin: "0 0 38px", fontFamily: "system-ui,sans-serif", fontWeight: 400 },
   heroActs: { display: "flex", flexDirection: "column", gap: 16, alignItems: "flex-start" },
-  heroCta: { display: "inline-flex", alignItems: "center", gap: 10, background: "#e8d44d", border: "none", borderRadius: 10, color: "#0a0a0e", padding: "15px 30px", fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "system-ui,sans-serif", letterSpacing: "-0.2px", transition: "background .18s, transform .12s", boxShadow: "0 2px 16px rgba(232,212,77,0.25)" },
+  heroCta: { display: "inline-flex", alignItems: "center", gap: 10, background: "#e8d44d", border: "none", borderRadius: 10, color: "#0a0a0e", padding: "15px 30px", fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "system-ui,sans-serif", letterSpacing: "-0.2px", boxShadow: "0 2px 16px rgba(232,212,77,0.25)" },
   heroNote: { fontSize: 12, color: "#4a4a5a", fontFamily: "system-ui,sans-serif", letterSpacing: "0.4px" },
+  
+  imageSection: { padding: "80px 40px", maxWidth: 1200, margin: "0 auto" },
+  imageWrap: { display: "flex", flexDirection: "column", gap: 20, alignItems: "center" },
+  image: { width: "100%", maxWidth: 900, height: "auto", borderRadius: 16, objectFit: "cover", boxShadow: "0 8px 32px rgba(0,0,0,0.3)" },
+  imageCaption: { fontSize: 15, color: "#8a8a9a", textAlign: "center", maxWidth: 600, margin: 0, fontFamily: "system-ui,sans-serif", lineHeight: 1.6, fontStyle: "italic" },
+  
   section: { padding: "120px 40px", maxWidth: 980, margin: "0 auto" },
   sectionHead: { marginBottom: 60, textAlign: "center" },
   sectionH2: { fontSize: "clamp(34px,5.5vw,52px)", fontWeight: 700, lineHeight: 1.12, color: "#fff", margin: 0, letterSpacing: "-1.8px" },
@@ -741,4 +1026,7 @@ export default function Schplitz() {
   const [view, setView] = useState("landing");
   if (view === "app") return <ExpenseTracker onBack={() => setView("landing")} />;
   return <LandingPage onLaunch={() => setView("app")} />;
-    }
+}
+```
+
+</details>
