@@ -664,46 +664,43 @@ function LandingPage({ onLaunch }) {
       </section>
 
       {/* PROBLEM */}
-      <section style={L.section}>
-        <div style={L.sectionHead}>
-          <span style={L.eyebrow}>the uncomfortable truth</span>
-          <h2 style={L.sectionH2}>Most apps<br /><span style={L.accent}>know too much.</span></h2>
-        </div>
-        <div style={L.problemGrid}>
-          {[
-            { title: "Synced to the cloud", body: "Every expense you log is uploaded to a server you don't own, run by a company you've never met." },
-            { title: "Mined for insights",  body: "Your spending habits become data points. Someone, somewhere, is learning what you buy." },
-            { title: "Shared with third parties", body: "Ad networks, analytics, payment processors — your data gets passed around like a hot potato." },
-          ].map((item, i) => (
-            <div key={i} style={L.probCard}>
-              <h3 style={L.probTitle}>{item.title}</h3>
-              <p style={L.probBody}>{item.body}</p>
-            </div>
-          ))}
-        </div>
-        {/* Bar friends — nights out are the #1 source of expense disputes */}
-        <div style={L.sectionImgWrap}>
-          <img src="/images/bar-friends.jpg" alt="Friends out at a bar toasting" style={L.sectionImg} loading="lazy" />
-          <p style={L.imageCaption}>Every round someone pays. Every tab someone owes. Keep it between you.</p>
-        </div>
-      </section>
+<section style={L.section}>
+  <div style={L.sectionHead}>
+    <span style={L.eyebrow}>the uncomfortable truth</span>
+    <h2 style={L.sectionH2}>Most apps<br /><span style={L.accent}>know too much.</span></h2>
+  </div>
+  <div style={L.problemGrid}>
+    <div style={L.probCard}>
+      <img src="/images/city-night.jpg" alt="" style={L.probImg} loading="lazy" />
+      <h3 style={L.probTitle}>Synced to the cloud</h3>
+      <p style={L.probBody}>Every expense you log is uploaded to a server you don't own, run by a company you've never met.</p>
+    </div>
+    <div style={L.probCard}>
+      <img src="/images/bar-friends.jpg" alt="" style={L.probImg} loading="lazy" />
+      <h3 style={L.probTitle}>Mined for insights</h3>
+      <p style={L.probBody}>Your spending habits become data points. Someone, somewhere, is learning what you buy.</p>
+    </div>
+    <div style={L.probCard}>
+      <img src="/images/bar-couple.jpg" alt="" style={L.probImg} loading="lazy" />
+      <h3 style={L.probTitle}>Shared with third parties</h3>
+      <p style={L.probBody}>Ad networks, analytics, payment processors — your data gets passed around like a hot potato.</p>
+    </div>
+  </div>
+</section>
 
       {/* QUOTE */}
-      <div style={L.quoteWrap}>
-        <div style={L.quoteInner}>
-          <div style={L.quoteLine} />
-          <p style={L.quoteText}>"The best place to store sensitive data is somewhere no one else can reach it."</p>
-          <span style={L.quoteAttr}>The only server Schplitz uses is your device.</span>
-        </div>
-      </div>
+      {/* Couple in nature — above the quote, no caption */}
+<div style={L.quoteImgWrap}>
+  <img src="/images/couple-nature.jpg" alt="" style={L.quoteImg} loading="lazy" />
+</div>
 
-      {/* Couple in nature — the trips that create shared expenses */}
-      <section style={L.imageSection}>
-        <div style={L.imageWrap}>
-          <img src="/images/couple-nature.jpg" alt="Couple sitting together in nature at sunset" style={L.image} loading="lazy" />
-          <p style={L.imageCaption}>The trips worth taking shouldn't leave a data trail behind.</p>
-        </div>
-      </section>
+<div style={L.quoteWrap}>
+  <div style={L.quoteInner}>
+    <div style={L.quoteLine} />
+    <p style={L.quoteText}>"The best place to store sensitive data is somewhere no one else can reach it."</p>
+    <span style={L.quoteAttr}>The only server Schplitz uses is your device.</span>
+  </div>
+</div>
 
       {/* HOW IT WORKS */}
       <section style={L.howSection}>
@@ -887,8 +884,6 @@ const L = {
   stepNum:        { display: "block", fontSize: 11, fontWeight: 700, color: "#e8d44d", letterSpacing: "1px", fontFamily: "system-ui,sans-serif", marginBottom: 14 },
   stepTitle:      { fontSize: 16, fontWeight: 700, color: "#fff", margin: "0 0 10px", fontFamily: "system-ui,sans-serif" },
   stepBody:       { fontSize: 13, lineHeight: 1.65, color: "#5f5f6f", margin: 0, fontFamily: "system-ui,sans-serif" },
-  sectionImgWrap: { display: "flex", flexDirection: "column", gap: 18, alignItems: "center" },
-  sectionImg:     { width: "100%", maxWidth: 1000, height: 480, borderRadius: 16, objectFit: "cover", objectPosition: "center", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" },
   imageSection:   { padding: "0 60px 100px", maxWidth: 1100, margin: "0 auto" },
   imageWrap:      { display: "flex", flexDirection: "column", gap: 20, alignItems: "center" },
   image:          { width: "100%", maxWidth: 1000, height: 520, borderRadius: 16, objectFit: "cover", objectPosition: "center top", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" },
@@ -906,5 +901,8 @@ const L = {
   footer:         { padding: "44px 60px", textAlign: "center", borderTop: "1px solid rgba(255,255,255,0.05)" },
   footerLogo:     { display: "block", fontSize: 18, fontWeight: 700, color: "rgba(255,255,255,0.3)", marginBottom: 8 },
   footerCopy:     { fontSize: 12, color: "#3a3a4a", fontFamily: "system-ui,sans-serif" },
+  probImg:      { width: "100%", height: 200, objectFit: "cover", borderRadius: 10, marginBottom: 20, display: "block" },
+quoteImgWrap: { maxWidth: 1100, margin: "0 auto", padding: "0 60px" },
+quoteImg:     { width: "100%", height: 480, objectFit: "cover", objectPosition: "center 30%", borderRadius: 16, display: "block", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" },
 };
 
