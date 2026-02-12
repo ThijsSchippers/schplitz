@@ -1,4 +1,6 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+        {setupMode === "new" && (
+          <div style={S.setupForm}>
+            <button onClick={() =import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  EXPENSE TRACKER APP
@@ -82,6 +84,22 @@ function validateExpense(e) {
   return true;
 }
 
+async function compressToUrl(str) {
+  const stream = new Blob([str]).stream();
+  const compressed = stream.pipeThrough(new CompressionStream("deflate-raw"));
+  const buf = await new Response(compressed).arrayBuffer();
+  return btoa(String.fromCharCode(...new Uint8Array(buf)))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+}
+
+async function decompressFromUrl(str) {
+  const bin = atob(str.replace(/-/g, "+").replace(/_/g, "/"));
+  const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+  const stream = new Blob([bytes]).stream();
+  const decompressed = stream.pipeThrough(new DecompressionStream("deflate-raw"));
+  return new Response(decompressed).text();
+}
+
 const PBKDF2_ITERS = 200_000;
 async function deriveKey(pass, salt) {
   const b = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveBits"]);
@@ -144,6 +162,7 @@ function ExpenseTracker({ onBack }) {
   const [exportStatus, setExportStatus] = useState("just_started");
   const [exporting, setExporting] = useState(false);
   const [exportResult, setExportResult] = useState("");
+  const [exportIsUrl, setExportIsUrl] = useState(false);
   const [copied, setCopied] = useState(false);
   
   const [rates, setRates] = useState(FALLBACK_RATES);
@@ -173,6 +192,26 @@ function ExpenseTracker({ onBack }) {
     }
   }, [importText]);
 
+useEffect(() => {
+  const hash = window.location.hash;
+  if (!hash.startsWith("#share=")) return;
+  const compressed = hash.slice(7); // Remove "#share="
+  (async () => {
+    try {
+      const json = await decompressFromUrl(compressed);
+      const data = JSON.parse(json);
+      if (data.v === 3) {
+        setImportText(json);
+        setDetectedQuestion(data.question || "");
+        setDetectedNames(data.names || []);
+        setSetupMode("import");
+      }
+    } catch (err) {
+      console.error("Failed to parse share URL:", err);
+    }
+  })();
+}, []);
+  
   useEffect(() => {
     const stored = localStorage.getItem("schplitzExpenses");
     if (stored) {
@@ -320,43 +359,42 @@ function ExpenseTracker({ onBack }) {
     setImporting(false);
   };
 
-  const handleExport = async () => {
-    if (!expenses.length) { 
-      showToast("Nothing to export yet", "info"); 
-      return; 
-    }
-    
-    setExporting(true);
-    try {
-      const dataToExport = {
-        expenses: expenses.map(e => ({
-          i: e.id,
-          d: e.description,
-          a: e.amount,
-          c: e.currency,
-          p: e.paidBy,
-          t: e.date
-        })),
+const handleExport = async () => {
+  if (!expenses.length) {
+    showToast("Nothing to export yet", "info");
+    return;
+  }
+  setExporting(true);
+  try {
+    const payload = {
+      v: 3,
+      question: securityQuestion,
+      names: [myName, otherName],
+      encrypted: await encrypt(JSON.stringify({
+        expenses: expenses.map(e => ({ i:e.id, d:e.description, a:e.amount, c:e.currency, p:e.paidBy, t:e.date })),
         status: exportStatus
-      };
-      
-      const encrypted = await encrypt(JSON.stringify(dataToExport), securityAnswer);
-      
-      setExportResult(JSON.stringify({
-        v: 3,
-        question: securityQuestion,
-        names: [myName, otherName],
-        encrypted
-      }, null, 2));
-      
-      setMyStatus(exportStatus);
-    } catch (err) {
-      console.error("Export failed:", err);
-      showToast("Export failed", "error");
-    }
-    setExporting(false);
-  };
+      }), securityAnswer)
+    };
 
+    const compressed = await compressToUrl(JSON.stringify(payload));
+    const url = `${window.location.origin}${window.location.pathname}#share=${compressed}`;
+
+    if (url.length > 8000) {
+      showToast("Too many expenses for a URL — copy the text below instead", "info");
+      setExportResult(JSON.stringify(payload, null, 2));
+      setExportIsUrl(false);
+    } else {
+      setExportResult(url);
+      setExportIsUrl(true);
+    }
+    setMyStatus(exportStatus);
+  } catch (err) {
+    console.error("Export failed:", err);
+    showToast("Export failed", "error");
+  }
+  setExporting(false);
+};
+  
   const handleCopy = async () => {
     try { 
       await navigator.clipboard.writeText(exportResult); 
@@ -395,9 +433,7 @@ function ExpenseTracker({ onBack }) {
           </div>
         )}
 
-        {setupMode === "new" && (
-          <div style={S.setupForm}>
-            <button onClick={() => setSetupMode("choice")} style={S.backLink}>← Back</button>
+> setSetupMode("choice")} style={S.backLink}>← Back</button>
             
             <div style={S.setupField}>
               <label style={S.setupLabel}>Your name</label>
@@ -465,7 +501,24 @@ function ExpenseTracker({ onBack }) {
               <textarea 
                 autoFocus
                 value={importText} 
-                onChange={e => setImportText(e.target.value)}
+                onChange={async e => {
+  const val = e.target.value.trim();
+  if (val.includes("#share=")) {
+    const compressed = val.split("#share=")[1];
+    try {
+      const json = await decompressFromUrl(compressed);
+      const data = JSON.parse(json);
+      setImportText(json);
+      setDetectedQuestion(data.question || "");
+      setDetectedNames(data.names || []);
+    } catch (err) {
+      console.error("Failed to parse pasted URL:", err);
+      setImportText(val);
+    }
+  } else {
+    setImportText(val);
+  }
+}}
                 placeholder="Paste the encrypted JSON here..."
                 style={S.setupTextarea} 
               />
@@ -547,40 +600,43 @@ function ExpenseTracker({ onBack }) {
 
             {!exportResult ? (
               <>
-                <p style={S.modalDesc}>Select your status and export encrypted data to share with {otherName}.</p>
-                
-                <div style={S.statusGrid}>
-                  {STATUS_OPTIONS.map(opt => (
-                    <button
-                      key={opt.value}
-                      onClick={() => setExportStatus(opt.value)}
-                      style={{
-                        ...S.statusBtn,
-                        ...(exportStatus === opt.value ? S.statusBtnActive : {})
-                      }}
-                    >
-                      <span style={S.statusEmoji}>{opt.emoji}</span>
-                      <span style={S.statusLabel}>{opt.label}</span>
-                    </button>
-                  ))}
-                </div>
-
-                <button 
-                  onClick={handleExport} 
-                  disabled={exporting}
-                  style={{ ...S.copyBtn, ...(exporting ? disabledStyle : {}) }}
-                >
-                  {exporting ? "Encrypting…" : "Encrypt & Export"}
-                </button>
-              </>
-            ) : (
-              <>
-                <p style={{ ...S.modalDesc, marginBottom: 8 }}>Encrypted — safe to copy and send to {otherName}.</p>
-                <textarea ref={taRef} readOnly value={exportResult} style={S.expTA} />
-                <button onClick={handleCopy} style={S.copyBtn}>
-                  {copied ? <><I.Chk /> Copied!</> : <><I.Copy /> Copy to Clipboard</>}
-                </button>
-              </>
+    <p style={S.modalDesc}>
+      Select your status then generate a shareable link for {otherName}.
+    </p>
+    <div style={S.statusGrid}>
+      {STATUS_OPTIONS.map(opt => (
+        <button
+          key={opt.value}
+          onClick={() => setExportStatus(opt.value)}
+          style={{ ...S.statusBtn, ...(exportStatus === opt.value ? S.statusBtnActive : {}) }}
+        >
+          <span style={S.statusEmoji}>{opt.emoji}</span>
+          <span style={S.statusLabel}>{opt.label}</span>
+        </button>
+      ))}
+    </div>
+    <button
+      onClick={handleExport}
+      disabled={exporting}
+      style={{ ...S.copyBtn, ...(exporting ? disabledStyle : {}) }}
+    >
+      {exporting ? "Generating…" : "🔗 Generate Share Link"}
+    </button>
+  </>
+) : (
+  <>
+    <p style={{ ...S.modalDesc, marginBottom: 8 }}>
+      {exportIsUrl
+        ? `Send this link to ${otherName}. The encrypted data is in the URL — no separate blob needed.`
+        : `Link too long for this many expenses — copy the text below instead.`}
+    </p>
+    <textarea ref={taRef} readOnly value={exportResult}
+      style={{ ...S.expTA, ...(exportIsUrl ? { minHeight: 72, color: "#7ab8f5", fontSize: 11 } : {}) }}
+    />
+    <button onClick={handleCopy} style={S.copyBtn}>
+      {copied ? <><I.Chk /> Copied!</> : <><I.Copy /> {exportIsUrl ? "Copy Link" : "Copy Text"}</>}
+    </button>
+  </>
             )}
           </div>
         </div>
@@ -588,7 +644,7 @@ function ExpenseTracker({ onBack }) {
 
       <header style={S.header}>
         <span style={S.hdrName}><I.User /> {myName}</span>
-        <button onClick={() => { setExportResult(""); setExportStatus(myStatus); setModal("export"); }} style={S.hdrBtnExp}>
+        <button onClick={() => { setExportResult(""); setExportIsUrl(false); setExportStatus(myStatus); setModal("export"); }} style={S.hdrBtnExp}>
           <I.Down /> Export
         </button>
       </header>
