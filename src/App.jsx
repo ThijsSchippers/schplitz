@@ -639,10 +639,10 @@ function LandingPage({ onLaunch }) {
       <section style={L.hero}>
         <div style={L.glowA} />
         <div style={L.glowB} />
-        <div style={L.heroInner}>
+        <div style={L.CTAInner}>
           <span style={L.eyebrow}>expense splitting, redesigned</span>
           <h1 style={L.heroH1}>
-            Don't let your<br />purchase history<br />haunt <span style={L.accent}>your future.</span>
+            Don't let your<br />purchase history<br /> <span style={L.accent}>haunt your future.</span>
           </h1>
           <p style={L.heroP}>
             Schplitz keeps expenses on your device. Share them encrypted with one other person. No cloud, no tracking.
