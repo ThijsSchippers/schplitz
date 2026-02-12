@@ -657,10 +657,6 @@ function LandingPage({ onLaunch }) {
             <span style={L.heroNote}>No account. No sign-up. No cloud.</span>
           </div>
         </div>
-        <div style={L.heroImgWrap}>
-          <img src="/images/bar-couple.jpg" alt="A couple at a bar" style={L.heroImg} loading="eager" />
-          <div style={L.heroImgOverlay} />
-        </div>
       </section>
 
       {/* PROBLEM */}
