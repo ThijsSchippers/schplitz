@@ -718,11 +718,6 @@ function LandingPage({ onLaunch }) {
             </div>
           ))}
         </div>
-        {/* City at night — shared experiences anywhere in the world */}
-        <div style={L.sectionImgWrap}>
-          <img src="/images/city-night.jpg" alt="City skyline at night" style={L.sectionImg} loading="lazy" />
-          <p style={L.imageCaption}>Wherever you are. Whatever you spend. Settled privately.</p>
-        </div>
       </section>
 
       {/* CTA */}
