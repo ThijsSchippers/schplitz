@@ -635,29 +635,29 @@ function LandingPage({ onLaunch }) {
         <button onClick={onLaunch} style={L.navCta}>Open App</button>
       </nav>
 
-      {/* HERO — bar couple image sits right of copy */}
-      <section style={L.hero}>
-        <div style={L.glowA} />
-        <div style={L.glowB} />
-        <div style={L.CTAInner}>
-          <span style={L.eyebrow}>expense splitting, redesigned</span>
-          <h1 style={L.heroH1}>
-            Don't let your<br />purchase history<br /> <span style={L.accent}>haunt your future.</span>
-          </h1>
-          <p style={L.heroP}>
-            Schplitz keeps expenses on your device. Share them encrypted with one other person. No cloud, no tracking.
-          </p>
-          <div style={L.heroActs}>
-            <button onClick={onLaunch} style={L.heroCta}>
-              Start splitting
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-              </svg>
-            </button>
-            <span style={L.heroNote}>No account. No sign-up. No cloud.</span>
-          </div>
-        </div>
-      </section>
+{/* HERO */}
+<section style={L.hero}>
+  <div style={L.glowA} />
+  <div style={L.glowB} />
+  <div style={L.heroInner}>
+    <span style={L.eyebrow}>expense splitting, redesigned</span>
+    <h1 style={L.heroH1}>
+      Don't let your<br />purchase history<br />haunt <span style={L.accent}>your future.</span>
+    </h1>
+    <p style={L.heroP}>
+      Schplitz keeps expenses on your device. Share them encrypted with one other person. No cloud, no tracking.
+    </p>
+    <div style={L.heroActs}>
+      <button onClick={onLaunch} style={L.heroCta}>
+        Start splitting
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+          <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+        </svg>
+      </button>
+      <span style={L.heroNote}>No account. No sign-up. No cloud.</span>
+    </div>
+  </div>
+</section>
 
       {/* PROBLEM */}
 <section style={L.section}>
@@ -848,13 +848,10 @@ const L = {
   nav:            { position: "sticky", top: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 36px", background: "rgba(10,10,14,0.88)", backdropFilter: "blur(14px)", borderBottom: "1px solid rgba(255,255,255,0.07)" },
   logo:           { fontSize: 22, fontWeight: 700, color: "#fff", letterSpacing: "-0.5px" },
   navCta:         { padding: "8px 22px", background: "transparent", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 8, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" },
-  hero:           { position: "relative", minHeight: "100vh", display: "grid", gridTemplateColumns: "1fr 1fr", alignItems: "center", overflow: "hidden" },
+  hero: { position: "relative", minHeight: "100vh", display: "flex", alignItems: "center", overflow: "hidden", padding: "0 60px" },
   glowA:          { position: "absolute", top: "-25%", left: "-8%", width: "55%", height: "75%", background: "radial-gradient(ellipse, rgba(232,212,77,0.09) 0%, transparent 70%)", pointerEvents: "none", zIndex: 1 },
   glowB:          { position: "absolute", bottom: "-15%", right: "48%", width: "30%", height: "55%", background: "radial-gradient(ellipse, rgba(59,130,246,0.055) 0%, transparent 70%)", pointerEvents: "none", zIndex: 1 },
   heroInner:      { position: "relative", zIndex: 2, padding: "120px 0 100px 60px" },
-  heroImgWrap:    { position: "relative", height: "100vh", overflow: "hidden" },
-  heroImg:        { width: "100%", height: "100%", objectFit: "cover", objectPosition: "center" },
-  heroImgOverlay: { position: "absolute", inset: 0, background: "linear-gradient(to right, #0a0a0e 0%, transparent 30%, rgba(0,0,0,0.3) 100%)" },
   eyebrow:        { display: "inline-block", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "2.8px", color: "#e8d44d", marginBottom: 28, fontFamily: "system-ui,sans-serif" },
   heroH1:         { fontSize: "clamp(38px,4.5vw,66px)", fontWeight: 700, lineHeight: 1.06, color: "#fff", margin: "0 0 30px", letterSpacing: "-2px" },
   accent:         { color: "#e8d44d" },
