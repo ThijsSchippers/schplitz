@@ -275,17 +275,27 @@ function ExpenseTracker() {
       const decrypted = await decrypt(o.encrypted, normalizedAnswer);
       const data = JSON.parse(decrypted);
       if (!Array.isArray(data.expenses)) throw new Error("Invalid data format");
-      data.expenses.forEach((e, idx) => {
-        try { validateExpense(e); }
+      // Expand short keys (i/d/a/c/p/t) back to full keys for validation and storage
+      const expenses = data.expenses.map((e, idx) => {
+        const full = {
+          id:          e.id ?? e.i,
+          description: e.description ?? e.d,
+          amount:      e.amount ?? e.a,
+          currency:    e.currency ?? e.c,
+          paidBy:      e.paidBy ?? e.p,
+          date:        e.date ?? e.t,
+        };
+        try { validateExpense(full); }
         catch (err) { throw new Error(`Invalid expense at index ${idx}: ${err.message}`); }
+        return full;
       });
       const otherPersonName = (o.names || []).find(n => n !== setupMyName.trim()) || "";
       setMyName(setupMyName.trim()); setOtherName(otherPersonName);
       setSecurityQuestion(o.question || ""); setSecurityAnswer(normalizedAnswer);
       setMyStatus("just_started"); setOtherStatus(data.status || null);
-      setExpenses(data.expenses || []); setInitialized(true);
+      setExpenses(expenses); setInitialized(true);
       window.history.replaceState(null, "", window.location.pathname);
-      showToast(`Imported ${data.expenses.length} expense${data.expenses.length !== 1 ? "s" : ""}!`);
+      showToast(`Imported ${expenses.length} expense${expenses.length !== 1 ? "s" : ""}!`);
     } catch (err) {
       console.error("Import failed:", err);
       showToast(err.name === "OperationError" ? "Wrong answer or corrupted data" : `Import failed: ${err.message}`, "error");
@@ -635,68 +645,75 @@ function LandingPage({ onLaunch }) {
         <button onClick={onLaunch} style={L.navCta}>Open App</button>
       </nav>
 
-{/* HERO */}
-<section style={L.hero}>
-  <div style={L.glowA} />
-  <div style={L.glowB} />
-  <div style={L.heroInner}>
-    <span style={L.eyebrow}>expense splitting, redesigned</span>
-    <h1 style={L.heroH1}>
-      Don't let your<br />purchase history<br />haunt <span style={L.accent}>your future.</span>
-    </h1>
-    <p style={L.heroP}>
-      Schplitz keeps expenses on your device. Share them encrypted with one other person. No cloud, no tracking.
-    </p>
-    <div style={L.heroActs}>
-      <button onClick={onLaunch} style={L.heroCta}>
-        Start splitting
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-          <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-        </svg>
-      </button>
-      <span style={L.heroNote}>No account. No sign-up. No cloud.</span>
-    </div>
-  </div>
-</section>
+      {/* HERO — bar couple image sits right of copy */}
+      <section style={L.hero}>
+        <div style={L.glowA} />
+        <div style={L.glowB} />
+        <div style={L.heroInner}>
+          <span style={L.eyebrow}>expense splitting, redesigned</span>
+          <h1 style={L.heroH1}>
+            Don't let your<br />purchase history<br />haunt <span style={L.accent}>your future.</span>
+          </h1>
+          <p style={L.heroP}>
+            Schplitz keeps expenses on your device. Share them encrypted with one other person. No cloud, no tracking.
+          </p>
+          <div style={L.heroActs}>
+            <button onClick={onLaunch} style={L.heroCta}>
+              Start splitting
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+              </svg>
+            </button>
+            <span style={L.heroNote}>No account. No sign-up. No cloud.</span>
+          </div>
+        </div>
+        <div style={L.heroImgWrap}>
+          <img src="/images/bar-couple.jpg" alt="A couple at a bar" style={L.heroImg} loading="eager" />
+          <div style={L.heroImgOverlay} />
+        </div>
+      </section>
 
       {/* PROBLEM */}
-<section style={L.section}>
-  <div style={L.sectionHead}>
-    <span style={L.eyebrow}>the uncomfortable truth</span>
-    <h2 style={L.sectionH2}>Most apps<br /><span style={L.accent}>know too much.</span></h2>
-  </div>
-  <div style={L.problemGrid}>
-    <div style={L.probCard}>
-      <img src="/images/city-night.jpg" alt="" style={L.probImg} loading="lazy" />
-      <h3 style={L.probTitle}>Synced to the cloud</h3>
-      <p style={L.probBody}>Every expense you log is uploaded to a server you don't own, run by a company you've never met.</p>
-    </div>
-    <div style={L.probCard}>
-      <img src="/images/bar-friends.jpg" alt="" style={L.probImg} loading="lazy" />
-      <h3 style={L.probTitle}>Mined for insights</h3>
-      <p style={L.probBody}>Your spending habits become data points. Someone, somewhere, is learning what you buy.</p>
-    </div>
-    <div style={L.probCard}>
-      <img src="/images/bar-couple.jpg" alt="" style={L.probImg} loading="lazy" />
-      <h3 style={L.probTitle}>Shared with third parties</h3>
-      <p style={L.probBody}>Ad networks, analytics, payment processors — your data gets passed around like a hot potato.</p>
-    </div>
-  </div>
-</section>
+      <section style={L.section}>
+        <div style={L.sectionHead}>
+          <span style={L.eyebrow}>the uncomfortable truth</span>
+          <h2 style={L.sectionH2}>Most apps<br /><span style={L.accent}>know too much.</span></h2>
+        </div>
+        <div style={L.problemGrid}>
+          {[
+            { title: "Synced to the cloud", body: "Every expense you log is uploaded to a server you don't own, run by a company you've never met." },
+            { title: "Mined for insights",  body: "Your spending habits become data points. Someone, somewhere, is learning what you buy." },
+            { title: "Shared with third parties", body: "Ad networks, analytics, payment processors — your data gets passed around like a hot potato." },
+          ].map((item, i) => (
+            <div key={i} style={L.probCard}>
+              <h3 style={L.probTitle}>{item.title}</h3>
+              <p style={L.probBody}>{item.body}</p>
+            </div>
+          ))}
+        </div>
+        {/* Bar friends — nights out are the #1 source of expense disputes */}
+        <div style={L.sectionImgWrap}>
+          <img src="/images/bar-friends.jpg" alt="Friends out at a bar toasting" style={L.sectionImg} loading="lazy" />
+          <p style={L.imageCaption}>Every round someone pays. Every tab someone owes. Keep it between you.</p>
+        </div>
+      </section>
 
       {/* QUOTE */}
-      {/* Couple in nature — above the quote, no caption */}
-<div style={L.quoteImgWrap}>
-  <img src="/images/couple-nature.jpg" alt="" style={L.quoteImg} loading="lazy" />
-</div>
+      <div style={L.quoteWrap}>
+        <div style={L.quoteInner}>
+          <div style={L.quoteLine} />
+          <p style={L.quoteText}>"The best place to store sensitive data is somewhere no one else can reach it."</p>
+          <span style={L.quoteAttr}>The only server Schplitz uses is your device.</span>
+        </div>
+      </div>
 
-<div style={L.quoteWrap}>
-  <div style={L.quoteInner}>
-    <div style={L.quoteLine} />
-    <p style={L.quoteText}>"The best place to store sensitive data is somewhere no one else can reach it."</p>
-    <span style={L.quoteAttr}>The only server Schplitz uses is your device.</span>
-  </div>
-</div>
+      {/* Couple in nature — the trips that create shared expenses */}
+      <section style={L.imageSection}>
+        <div style={L.imageWrap}>
+          <img src="/images/couple-nature.jpg" alt="Couple sitting together in nature at sunset" style={L.image} loading="lazy" />
+          <p style={L.imageCaption}>The trips worth taking shouldn't leave a data trail behind.</p>
+        </div>
+      </section>
 
       {/* HOW IT WORKS */}
       <section style={L.howSection}>
@@ -717,6 +734,11 @@ function LandingPage({ onLaunch }) {
               <p style={L.stepBody}>{s.body}</p>
             </div>
           ))}
+        </div>
+        {/* City at night — shared experiences anywhere in the world */}
+        <div style={L.sectionImgWrap}>
+          <img src="/images/city-night.jpg" alt="City skyline at night" style={L.sectionImg} loading="lazy" />
+          <p style={L.imageCaption}>Wherever you are. Whatever you spend. Settled privately.</p>
         </div>
       </section>
 
@@ -848,10 +870,13 @@ const L = {
   nav:            { position: "sticky", top: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 36px", background: "rgba(10,10,14,0.88)", backdropFilter: "blur(14px)", borderBottom: "1px solid rgba(255,255,255,0.07)" },
   logo:           { fontSize: 22, fontWeight: 700, color: "#fff", letterSpacing: "-0.5px" },
   navCta:         { padding: "8px 22px", background: "transparent", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 8, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" },
-  hero: { position: "relative", minHeight: "100vh", display: "flex", alignItems: "center", overflow: "hidden", padding: "0 60px" },
+  hero:           { position: "relative", minHeight: "100vh", display: "grid", gridTemplateColumns: "1fr 1fr", alignItems: "center", overflow: "hidden" },
   glowA:          { position: "absolute", top: "-25%", left: "-8%", width: "55%", height: "75%", background: "radial-gradient(ellipse, rgba(232,212,77,0.09) 0%, transparent 70%)", pointerEvents: "none", zIndex: 1 },
   glowB:          { position: "absolute", bottom: "-15%", right: "48%", width: "30%", height: "55%", background: "radial-gradient(ellipse, rgba(59,130,246,0.055) 0%, transparent 70%)", pointerEvents: "none", zIndex: 1 },
   heroInner:      { position: "relative", zIndex: 2, padding: "120px 0 100px 60px" },
+  heroImgWrap:    { position: "relative", height: "100vh", overflow: "hidden" },
+  heroImg:        { width: "100%", height: "100%", objectFit: "cover", objectPosition: "center" },
+  heroImgOverlay: { position: "absolute", inset: 0, background: "linear-gradient(to right, #0a0a0e 0%, transparent 30%, rgba(0,0,0,0.3) 100%)" },
   eyebrow:        { display: "inline-block", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "2.8px", color: "#e8d44d", marginBottom: 28, fontFamily: "system-ui,sans-serif" },
   heroH1:         { fontSize: "clamp(38px,4.5vw,66px)", fontWeight: 700, lineHeight: 1.06, color: "#fff", margin: "0 0 30px", letterSpacing: "-2px" },
   accent:         { color: "#e8d44d" },
@@ -872,6 +897,8 @@ const L = {
   stepNum:        { display: "block", fontSize: 11, fontWeight: 700, color: "#e8d44d", letterSpacing: "1px", fontFamily: "system-ui,sans-serif", marginBottom: 14 },
   stepTitle:      { fontSize: 16, fontWeight: 700, color: "#fff", margin: "0 0 10px", fontFamily: "system-ui,sans-serif" },
   stepBody:       { fontSize: 13, lineHeight: 1.65, color: "#5f5f6f", margin: 0, fontFamily: "system-ui,sans-serif" },
+  sectionImgWrap: { display: "flex", flexDirection: "column", gap: 18, alignItems: "center" },
+  sectionImg:     { width: "100%", maxWidth: 1000, height: 480, borderRadius: 16, objectFit: "cover", objectPosition: "center", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" },
   imageSection:   { padding: "0 60px 100px", maxWidth: 1100, margin: "0 auto" },
   imageWrap:      { display: "flex", flexDirection: "column", gap: 20, alignItems: "center" },
   image:          { width: "100%", maxWidth: 1000, height: 520, borderRadius: 16, objectFit: "cover", objectPosition: "center top", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" },
@@ -889,8 +916,4 @@ const L = {
   footer:         { padding: "44px 60px", textAlign: "center", borderTop: "1px solid rgba(255,255,255,0.05)" },
   footerLogo:     { display: "block", fontSize: 18, fontWeight: 700, color: "rgba(255,255,255,0.3)", marginBottom: 8 },
   footerCopy:     { fontSize: 12, color: "#3a3a4a", fontFamily: "system-ui,sans-serif" },
-  probImg:      { width: "100%", height: 200, objectFit: "cover", borderRadius: 10, marginBottom: 20, display: "block" },
-quoteImgWrap: { maxWidth: 1100, margin: "0 auto", padding: "0 60px" },
-quoteImg:     { width: "100%", height: 480, objectFit: "cover", objectPosition: "center 30%", borderRadius: 16, display: "block", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" },
 };
-
