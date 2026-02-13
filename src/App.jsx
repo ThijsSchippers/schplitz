@@ -650,12 +650,12 @@ function LandingPage({ onLaunch }) {
         <div style={L.glowA} />
         <div style={L.glowB} />
         <div style={L.heroInner}>
-          <span style={L.eyebrow}>expense splitting, redesigned</span>
+          <span style={L.eyebrow}>expense splitting, auf Nummer sicher</span>
           <h1 style={L.heroH1}>
             Don't let your<br />purchase history<br /><span style={L.accent}>haunt your future.</span>
           </h1>
           <p style={L.heroP}>
-            Schplitz keeps expenses on your device. Share them encrypted with one other person. No cloud, no tracking.
+            Schplitz keeps expenses on your device. Share them securily with one other person. No cloud, no tracking, no schnickschnak.
           </p>
           <div style={L.heroActs}>
             <button onClick={onLaunch} style={L.heroCta}>
@@ -664,7 +664,7 @@ function LandingPage({ onLaunch }) {
                 <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
               </svg>
             </button>
-            <span style={L.heroNote}>No account. No sign-up. No cloud.</span>
+            <span style={L.heroNote}>No account. No databases. No cloud.</span>
           </div>
         </div>
       </section>
