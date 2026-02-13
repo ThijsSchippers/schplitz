@@ -655,7 +655,7 @@ function LandingPage({ onLaunch }) {
             Don't let your<br />purchase history<br /><span style={L.accent}>haunt your future.</span>
           </h1>
           <p style={L.heroP}>
-            Schplitz keeps expenses on your device. Share them securily with one other person. No cloud, no tracking, no schnickschnak.
+            Schplitz keeps expenses on your device. Share them securily with each other. No cloud, no tracking, no schnickschnak.
           </p>
           <div style={L.heroActs}>
             <button onClick={onLaunch} style={L.heroCta}>
@@ -753,7 +753,7 @@ function LandingPage({ onLaunch }) {
 
       <footer style={L.footer}>
         <span style={L.footerLogo}>schplitz</span>
-        <span style={L.footerCopy}>No data collected. No servers. Just the people splitting costs.</span>
+        <span style={L.footerCopy}>Proudly built in Niederwalluf.</span>
       </footer>
     </div>
   );
