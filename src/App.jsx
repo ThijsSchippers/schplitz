@@ -38,21 +38,33 @@ async function decompressFromUrl(str) {
 
 const PBKDF2_ITERS = 200_000;
 
-async function fetchRates() {
+// Cache: "YYYY-MM-DD:CUR" -> rate (EUR per 1 unit of CUR, i.e. 1/rate_from_api)
+const rateCache = {};
+
+async function fetchHistoricalRate(date, currency) {
+  if (currency === "EUR") return 1;
+  const key = `${date}:${currency}`;
+  if (rateCache[key] !== undefined) return rateCache[key];
   try {
-    const r = await fetch("https://api.frankfurter.app/latest?from=EUR");
-    if (!r.ok) return null;
+    const r = await fetch(`https://api.frankfurter.app/${date}?from=EUR&to=${currency}`);
+    if (!r.ok) throw new Error("API error");
     const d = await r.json();
-    if (!d.rates) return null;
-    const o = { EUR:1 };
-    for (const c of Object.keys(CURRENCIES)) if (c !== "EUR" && d.rates[c] != null) o[c] = d.rates[c];
-    return o;
-  } catch (err) { console.error("Failed to fetch exchange rates:", err); return null; }
+    const rate = d.rates?.[currency];
+    if (rate == null) throw new Error("No rate returned");
+    rateCache[key] = rate;
+    return rate;
+  } catch (err) {
+    console.warn(`Failed to fetch rate for ${currency} on ${date}, using fallback:`, err);
+    const fallback = FALLBACK_RATES[currency] ?? 1;
+    rateCache[key] = fallback;
+    return fallback;
+  }
 }
 
-function toEUR(amt, cur, rates) {
+async function toEURHistorical(amt, cur, date) {
   if (cur === "EUR") return amt;
-  return amt / (rates[cur] ?? FALLBACK_RATES[cur] ?? 1);
+  const rate = await fetchHistoricalRate(date, cur);
+  return amt / rate;
 }
 
 const I = {
@@ -158,9 +170,7 @@ function ExpenseTracker() {
   const [exportIsUrl, setExportIsUrl]               = useState(false);
   const [copied, setCopied]                         = useState(false);
 
-  const [rates, setRates]                           = useState(FALLBACK_RATES);
-  const [rSrc, setRSrc]                             = useState("fallback");
-  const [loadingRates, setLoadingRates]             = useState(true);
+  const [eurAmounts, setEurAmounts]                  = useState({});  // id -> EUR value
 
   const taRef = useRef(null);
 
@@ -169,23 +179,29 @@ function ExpenseTracker() {
 
   useEffect(() => {
     const hash = window.location.hash;
-    if (!hash.startsWith("#share=")) return;
-    const compressed = hash.slice(7);
-    (async () => {
-      try {
-        const json = await decompressFromUrl(compressed);
-        const data = JSON.parse(json);
-        if (data.v === 3) {
-          setImportText(json);
-          setDetectedQuestion(data.question || "");
-          setDetectedNames(data.names || []);
-          setSetupMode("import");
-        }
-      } catch (err) { console.error("Failed to parse share URL:", err); }
-    })();
-  }, []);
 
-  useEffect(() => {
+    // A share link always takes priority — always show the import screen so the
+    // user can see all entries (including the other party's) after decrypting.
+    // We never silently load from localStorage here, because the link may belong
+    // to an entirely different tally with different people.
+    if (hash.startsWith("#share=")) {
+      const compressed = hash.slice(7);
+      (async () => {
+        try {
+          const json = await decompressFromUrl(compressed);
+          const data = JSON.parse(json);
+          if (data.v === 3) {
+            setImportText(json);
+            setDetectedQuestion(data.question || "");
+            setDetectedNames(data.names || []);
+            setSetupMode("import");
+          }
+        } catch (err) { console.error("Failed to parse share URL:", err); }
+      })();
+      return; // Do not load localStorage — let the user import from the link
+    }
+
+    // No share link: restore session from localStorage as normal
     const stored = localStorage.getItem("schplitzExpenses");
     if (stored) {
       try {
@@ -220,10 +236,17 @@ function ExpenseTracker() {
   }, [importText]);
 
   useEffect(() => {
-    fetchRates()
-      .then(l => { if (l) { setRates(l); setRSrc("live"); } })
-      .finally(() => setLoadingRates(false));
-  }, []);
+    if (!expenses.length) { setEurAmounts({}); return; }
+    let cancelled = false;
+    (async () => {
+      const results = {};
+      await Promise.all(expenses.map(async e => {
+        results[e.id] = await toEURHistorical(e.amount, e.currency, e.date);
+      }));
+      if (!cancelled) setEurAmounts(results);
+    })();
+    return () => { cancelled = true; };
+  }, [expenses]);
 
   const showToast = useCallback((msg, type = "success") => {
     setToast({ msg, type });
@@ -234,12 +257,12 @@ function ExpenseTracker() {
     if (!otherName) return null;
     let my = 0, ot = 0;
     expenses.forEach(e => {
-      const eur = toEUR(e.amount, e.currency, rates);
+      const eur = eurAmounts[e.id] ?? 0;
       if (e.paidBy === myName) my += eur;
       else if (e.paidBy === otherName) ot += eur;
     });
     return { myTotal: my, otherTotal: ot, myBalance: my - (my + ot) / 2 };
-  }, [expenses, myName, otherName, rates]);
+  }, [expenses, eurAmounts, myName, otherName]);
 
   const addExpense = () => {
     if (!form.description.trim() || !form.amount) return;
@@ -527,11 +550,7 @@ function ExpenseTracker() {
             <div style={S.sumTop}>
               <span style={S.sumLabel}>Balance (EUR)</span>
               <div style={S.sumTopR}>
-                {loadingRates
-                  ? <span style={{ ...S.rBadge, color: "#888" }}>loading rates...</span>
-                  : <span style={{ ...S.rBadge, color: rSrc === "live" ? "#4caf50" : "#e8a84d" }}>
-                      {rSrc === "live" ? "live rates" : "fallback rates"}
-                    </span>}
+                <span style={{ ...S.rBadge, color: "#4caf50" }}>historical rates</span>
                 {summary.myBalance === 0 && expenses.length > 0 &&
                   <span style={S.settledBadge}><I.Settled /> Settled</span>}
               </div>
@@ -618,7 +637,7 @@ function ExpenseTracker() {
             <div style={S.expR}>
               <div style={S.expAmtG}>
                 <span style={S.expAmt}>{fmt(e.amount, e.currency)}</span>
-                {e.currency !== "EUR" && <span style={S.expAmtEur}>approx. {fmt(toEUR(e.amount, e.currency, rates), "EUR")}</span>}
+                {e.currency !== "EUR" && <span style={S.expAmtEur}>{eurAmounts[e.id] != null ? `≈ ${fmt(eurAmounts[e.id], "EUR")}` : "converting..."}</span>}
               </div>
               <button onClick={() => setExpenses(p => p.filter(x => x.id !== e.id))} style={S.delBtn} title="Delete">
                 <I.Trash />
