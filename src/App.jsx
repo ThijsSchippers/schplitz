@@ -549,11 +549,7 @@ function ExpenseTracker() {
           <div style={S.sumCard}>
             <div style={S.sumTop}>
               <span style={S.sumLabel}>Balance (EUR)</span>
-              <div style={S.sumTopR}>
-                <span style={{ ...S.rBadge, color: "#4caf50" }}>historical rates</span>
-                {summary.myBalance === 0 && expenses.length > 0 &&
-                  <span style={S.settledBadge}><I.Settled /> Settled</span>}
-              </div>
+
             </div>
             <div style={S.statusRow}>
               <div style={S.statusItem}>
@@ -592,7 +588,7 @@ function ExpenseTracker() {
       ) : (
         <div style={S.formCard}>
           <div style={S.fRow}>
-            <input autoFocus placeholder="What was it for?" value={form.description}
+            <input autoFocus placeholder="What was it for?" value={form.description} maxLength={30}
               onChange={e => setForm(p => ({ ...p, description: e.target.value }))} style={{ ...S.input, flex: 1 }} />
           </div>
           <div style={S.fRow}>
