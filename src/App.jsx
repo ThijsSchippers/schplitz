@@ -96,6 +96,20 @@ const uid = () => {
 
 const today = () => new Date().toISOString().split("T")[0];
 
+const NAME_PAIRS = [
+  ["Alex", "Jordan"],
+  ["Sofia", "Liam"],
+  ["Amara", "Noah"],
+  ["Yuki", "Carlos"],
+  ["Fatima", "Erik"],
+  ["Priya", "Mateo"],
+  ["Leila", "Sam"],
+  ["Chen", "Ingrid"],
+];
+const _namePair = NAME_PAIRS[Math.floor(Math.random() * NAME_PAIRS.length)];
+const PLACEHOLDER_ME    = _namePair[0];
+const PLACEHOLDER_OTHER = _namePair[1];
+
 function validateExpense(e) {
   if (!e || typeof e !== "object") throw new Error("Expense must be an object");
   if (!e.id || typeof e.id !== "string") throw new Error("Invalid or missing expense ID");
@@ -144,8 +158,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
   const [otherName, setOtherName]                   = useState("");
   const [securityQuestion, setSecurityQuestion]     = useState("");
   const [securityAnswer, setSecurityAnswer]         = useState("");
-  const [myStatus, setMyStatus]                     = useState("just_started");
-  const [otherStatus, setOtherStatus]               = useState(null);
+  const [statuses, setStatuses]                     = useState({});
   const [expenses, setExpenses]                     = useState([]);
   const [form, setForm]                             = useState({ description: "", amount: "", currency: "EUR", date: today() });
   const [showForm, setShowForm]                     = useState(false);
@@ -211,7 +224,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
         if (p.initialized) {
           setMyName(p.myName || ""); setOtherName(p.otherName || "");
           setSecurityQuestion(p.securityQuestion || ""); setSecurityAnswer(p.securityAnswer || "");
-          setMyStatus(p.myStatus || "just_started"); setOtherStatus(p.otherStatus || null);
+          setStatuses(p.statuses || {});
           setExpenses(p.expenses || []); setInitialized(true);
         }
       } catch (err) { console.error("Failed to load from storage:", err); }
@@ -223,10 +236,10 @@ function ExpenseTracker({ onResetToSetup } = {}) {
     try {
       localStorage.setItem("schplitzExpenses", JSON.stringify({
         initialized: true, myName, otherName, securityQuestion,
-        securityAnswer, myStatus, otherStatus, expenses
+        securityAnswer, statuses, expenses
       }));
     } catch (err) { console.error("Failed to save:", err); }
-  }, [initialized, myName, otherName, securityQuestion, securityAnswer, myStatus, otherStatus, expenses]);
+  }, [initialized, myName, otherName, securityQuestion, securityAnswer, statuses, expenses]);
 
   useEffect(() => {
     if (!importText.trim()) { setDetectedQuestion(""); setDetectedNames([]); return; }
@@ -284,7 +297,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
     }
     setMyName(setupMyName.trim()); setOtherName(setupOtherName.trim());
     setSecurityQuestion(setupQuestion.trim()); setSecurityAnswer(setupAnswer);
-    setMyStatus("just_started"); setOtherStatus(null); setExpenses([]);
+    setStatuses({}); setExpenses([]);
     setInitialized(true); showToast("New tally started!");
   };
 
@@ -315,9 +328,24 @@ function ExpenseTracker({ onResetToSetup } = {}) {
         return full;
       });
       const otherPersonName = (o.names || []).find(n => n !== setupMyName.trim()) || "";
+      // Merge statuses: start from what's stored locally (preserves all known statuses),
+      // then overlay the sender's status by name so it's always name-keyed.
+      let mergedStatuses = {};
+      try {
+        const stored = localStorage.getItem("schplitzExpenses");
+        if (stored) {
+          const p = JSON.parse(stored);
+          if (p.initialized && p.securityQuestion === (o.question || "")) {
+            mergedStatuses = { ...p.statuses };
+          }
+        }
+      } catch {}
+      // The sender's status is stored under their name
+      const senderName = (o.names || []).find(n => n !== setupMyName.trim()) || otherPersonName;
+      if (data.status && senderName) mergedStatuses[senderName] = data.status;
       setMyName(setupMyName.trim()); setOtherName(otherPersonName);
       setSecurityQuestion(o.question || ""); setSecurityAnswer(normalizedAnswer);
-      setMyStatus("just_started"); setOtherStatus(data.status || null);
+      setStatuses(mergedStatuses);
       setExpenses(expenses); setInitialized(true);
       window.history.replaceState(null, "", window.location.pathname);
       showToast(`Imported ${expenses.length} expense${expenses.length !== 1 ? "s" : ""}!`);
@@ -347,7 +375,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
       } else {
         setExportResult(url); setExportIsUrl(true);
       }
-      setMyStatus(exportStatus);
+      setStatuses(prev => ({ ...prev, [myName]: exportStatus }));
     } catch (err) { console.error("Export failed:", err); showToast("Export failed", "error"); }
     setExporting(false);
   };
@@ -413,11 +441,11 @@ function ExpenseTracker({ onResetToSetup } = {}) {
           <div style={S.setupForm}>
             <div style={S.setupField}>
               <label style={S.setupLabel}>Your name</label>
-              <input autoFocus value={setupMyName} onChange={e => setSetupMyName(e.target.value)} placeholder="e.g., Alex" style={S.setupInput} />
+              <input autoFocus value={setupMyName} onChange={e => setSetupMyName(e.target.value)} placeholder={`e.g., ${PLACEHOLDER_ME}`} style={S.setupInput} />
             </div>
             <div style={S.setupField}>
               <label style={S.setupLabel}>Other person's name</label>
-              <input value={setupOtherName} onChange={e => setSetupOtherName(e.target.value)} placeholder="e.g., Jordan" style={S.setupInput} />
+              <input value={setupOtherName} onChange={e => setSetupOtherName(e.target.value)} placeholder={`e.g., ${PLACEHOLDER_OTHER}`} style={S.setupInput} />
             </div>
             <div style={S.setupDivider} />
             <div style={S.setupField}>
@@ -518,7 +546,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
               <p style={S.modalDesc}>
                 Before starting a new tally, make sure {otherName} has your latest entries — otherwise they'll be gone for good.
               </p>
-              <button onClick={() => { setPendingNewTally(true); setExportResult(""); setExportIsUrl(false); setExportStatus(myStatus); setModal("export"); }}
+              <button onClick={() => { setPendingNewTally(true); setExportResult(""); setExportIsUrl(false); setExportStatus(statuses[myName] || "just_started"); setModal("export"); }}
                 disabled={!expenses.length}
                 style={{ ...S.copyBtn, ...(!expenses.length ? disabledStyle : {}) }}>
                 <I.Up /> {`Share latest with ${otherName}`}
@@ -586,7 +614,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
 
       <header style={S.header}>
         <span style={S.hdrName}><I.User /> {myName}</span>
-        <button onClick={() => { setExportResult(""); setExportIsUrl(false); setExportStatus(myStatus); setModal("export"); }} style={S.hdrBtnExp}>
+        <button onClick={() => { setExportResult(""); setExportIsUrl(false); setExportStatus(statuses[myName] || "just_started"); setModal("export"); }} style={S.hdrBtnExp}>
           <I.Up /> Share
         </button>
       </header>
@@ -601,11 +629,11 @@ function ExpenseTracker({ onResetToSetup } = {}) {
             <div style={S.statusRow}>
               <div style={S.statusItem}>
                 <span style={S.statusPerson}>{myName}</span>
-                <span style={S.statusBadge}>{STATUS_OPTIONS.find(s => s.value === myStatus)?.label}</span>
+                <span style={S.statusBadge}>{STATUS_OPTIONS.find(s => s.value === (statuses[myName] || "just_started"))?.label}</span>
               </div>
               <div style={S.statusItem}>
                 <span style={S.statusPerson}>{otherName}</span>
-                <span style={S.statusBadge}>{otherStatus ? STATUS_OPTIONS.find(s => s.value === otherStatus)?.label : "No update yet"}</span>
+                <span style={S.statusBadge}>{statuses[otherName] ? STATUS_OPTIONS.find(s => s.value === statuses[otherName])?.label : "No update yet"}</span>
               </div>
             </div>
             <div style={S.sumRow}>
