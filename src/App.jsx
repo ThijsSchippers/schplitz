@@ -138,7 +138,7 @@ async function decrypt(b64, pass) {
 
 // ─── EXPENSE TRACKER ─────────────────────────────────────────────────────────
 
-function ExpenseTracker() {
+function ExpenseTracker({ onResetToSetup } = {}) {
   const [initialized, setInitialized]               = useState(false);
   const [myName, setMyName]                         = useState("");
   const [otherName, setOtherName]                   = useState("");
@@ -152,7 +152,7 @@ function ExpenseTracker() {
   const [toast, setToast]                           = useState(null);
   const [modal, setModal]                           = useState(null);
 
-  const [setupMode, setSetupMode]                   = useState("choice");
+  const [setupMode, setSetupMode]                   = useState("new");
   const [setupMyName, setSetupMyName]               = useState("");
   const [setupOtherName, setSetupOtherName]         = useState("");
   const [setupQuestion, setSetupQuestion]           = useState("");
@@ -167,6 +167,8 @@ function ExpenseTracker() {
   const [exportStatus, setExportStatus]             = useState("just_started");
   const [exporting, setExporting]                   = useState(false);
   const [exportResult, setExportResult]             = useState("");
+  const [newTallyStep, setNewTallyStep]              = useState(1);
+  const [pendingNewTally, setPendingNewTally]         = useState(false);
   const [exportIsUrl, setExportIsUrl]               = useState(false);
   const [copied, setCopied]                         = useState(false);
 
@@ -357,6 +359,23 @@ function ExpenseTracker() {
     showToast("Copied to clipboard");
   };
 
+  const handleShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "Schplitz tally", url: exportResult });
+        return;
+      } catch (err) {
+        if (err.name === "AbortError") return; // user dismissed sheet
+        // fall through to clipboard
+      }
+    }
+    // Fallback: copy to clipboard
+    try { await navigator.clipboard.writeText(exportResult); }
+    catch { if (taRef.current) { taRef.current.select(); document.execCommand("copy"); } }
+    setCopied(true); setTimeout(() => setCopied(false), 1800);
+    showToast("Link copied to clipboard");
+  };
+
   const handlePasteImport = async (val) => {
     if (val.includes("#share=")) {
       const compressed = val.split("#share=")[1];
@@ -368,13 +387,17 @@ function ExpenseTracker() {
     } else { setImportText(val); }
   };
 
-  const resetEverything = () => {
-    if (!window.confirm("This will delete all data and start over. Are you sure?")) return;
-    setInitialized(false); setMyName(""); setOtherName(""); setSecurityQuestion(""); setSecurityAnswer("");
-    setMyStatus("just_started"); setOtherStatus(null); setExpenses([]); setSetupMode("choice");
+  const startNewTally = () => {
+    setNewTallyStep(1);
+    setModal("confirm-new");
+  };
+
+  const confirmStartNew = () => {
     localStorage.removeItem("schplitzExpenses");
     window.history.replaceState(null, "", window.location.pathname);
+    if (onResetToSetup) onResetToSetup(); // remounts ExpenseTracker fresh via key change
   };
+
 
   // ─── SETUP ───────────────────────────────────────────────────────────────
 
@@ -383,27 +406,11 @@ function ExpenseTracker() {
       <div style={S.setupCard}>
         <div style={S.setupHeader}>
           <h2 style={S.setupTitle}>Welcome to Schplitz</h2>
-          <p style={S.setupSub}>How would you like to start?</p>
+          <p style={S.setupSub}>{setupMode === "import" ? "Enter your answer to decrypt the tally." : "Set up a new shared tally."}</p>
         </div>
-
-        {setupMode === "choice" && (
-          <div style={S.choiceGrid}>
-            <button onClick={() => setSetupMode("new")} style={S.choiceBtn}>
-              <I.Users />
-              <span style={S.choiceBtnTitle}>Start New Tally</span>
-              <span style={S.choiceBtnDesc}>Begin tracking expenses with someone</span>
-            </button>
-            <button onClick={() => setSetupMode("import")} style={S.choiceBtn}>
-              <I.Up />
-              <span style={S.choiceBtnTitle}>Import Existing</span>
-              <span style={S.choiceBtnDesc}>Open a share link or paste encrypted data</span>
-            </button>
-          </div>
-        )}
 
         {setupMode === "new" && (
           <div style={S.setupForm}>
-            <button onClick={() => setSetupMode("choice")} style={S.backLink}>Back</button>
             <div style={S.setupField}>
               <label style={S.setupLabel}>Your name</label>
               <input autoFocus value={setupMyName} onChange={e => setSetupMyName(e.target.value)} placeholder="e.g., Alex" style={S.setupInput} />
@@ -444,7 +451,6 @@ function ExpenseTracker() {
 
         {setupMode === "import" && (
           <div style={S.setupForm}>
-            <button onClick={() => setSetupMode("choice")} style={S.backLink}>Back</button>
             <div style={S.setupField}>
               <label style={S.setupLabel}>Paste share link or encrypted data</label>
               <textarea autoFocus value={importText} onChange={e => handlePasteImport(e.target.value.trim())}
@@ -498,16 +504,55 @@ function ExpenseTracker() {
         </div>
       )}
 
-      {modal === "export" && (
+      {modal === "confirm-new" && (
         <div style={S.overlay} onClick={() => setModal(null)}>
           <div style={S.modalCard} onClick={e => e.stopPropagation()}>
             <div style={S.modalHdr}>
-              <span style={S.modalTitle}>Export Expenses</span>
+              <span style={S.modalTitle}>
+                {newTallyStep === 1 ? "Step 1 of 2 — Share your changes" : "Step 2 of 2 — Start fresh"}
+              </span>
               <button onClick={() => setModal(null)} style={S.modalX}><I.X /></button>
+            </div>
+
+            {newTallyStep === 1 ? (<>
+              <p style={S.modalDesc}>
+                Before starting a new tally, make sure {otherName} has your latest entries — otherwise they'll be gone for good.
+              </p>
+              <button onClick={() => { setPendingNewTally(true); setExportResult(""); setExportIsUrl(false); setExportStatus(myStatus); setModal("export"); }}
+                disabled={!expenses.length}
+                style={{ ...S.copyBtn, ...(!expenses.length ? disabledStyle : {}) }}>
+                <I.Up /> {`Share latest with ${otherName}`}
+              </button>
+              <button onClick={() => setNewTallyStep(2)}
+                style={{ ...S.copyBtn, marginTop: 8, background: "transparent", border: "1px solid #2e2e3e", color: "#6a6a7a" }}>
+                {expenses.length === 0 ? "Nothing to share — continue" : "I've already shared — continue"}
+              </button>
+            </>) : (<>
+              <p style={S.modalDesc}>
+                This will permanently erase your current tally with {otherName}. Any unshared expenses will be lost.
+              </p>
+              <button onClick={confirmStartNew} style={S.copyBtn}>
+                Yes, start a new tally
+              </button>
+              <button onClick={() => setModal(null)}
+                style={{ ...S.copyBtn, marginTop: 8, background: "transparent", border: "1px solid #2e2e3e", color: "#aaa" }}>
+                Cancel — keep this tally
+              </button>
+            </>)}
+          </div>
+        </div>
+      )}
+
+      {modal === "export" && (
+        <div style={S.overlay} onClick={() => { if (pendingNewTally) { setPendingNewTally(false); setNewTallyStep(1); setModal("confirm-new"); } else { setModal(null); } }}>
+          <div style={S.modalCard} onClick={e => e.stopPropagation()}>
+            <div style={S.modalHdr}>
+              <span style={S.modalTitle}>Share with {otherName}</span>
+              <button onClick={() => { if (pendingNewTally) { setPendingNewTally(false); setNewTallyStep(1); setModal("confirm-new"); } else { setModal(null); } }} style={S.modalX}><I.X /></button>
             </div>
             {!exportResult ? (
               <>
-                <p style={S.modalDesc}>Select your status then generate a shareable link for {otherName}.</p>
+                <p style={S.modalDesc}>How far along are you with your expenses?</p>
                 <div style={S.statusGrid}>
                   {STATUS_OPTIONS.map(opt => (
                     <button key={opt.value} onClick={() => setExportStatus(opt.value)}
@@ -518,18 +563,20 @@ function ExpenseTracker() {
                 </div>
                 <button onClick={handleExport} disabled={exporting}
                   style={{ ...S.copyBtn, ...(exporting ? disabledStyle : {}) }}>
-                  <I.Link /> {exporting ? "Generating..." : "Generate Share Link"}
+                  <I.Link /> {exporting ? "Generating..." : "Generate Link"}
                 </button>
               </>
+            ) : exportIsUrl ? (
+              <button onClick={async () => { await handleShare(); if (pendingNewTally) { setPendingNewTally(false); setNewTallyStep(2); setModal("confirm-new"); } }} style={S.copyBtn}>
+                {copied ? <><I.Chk /> Copied!</> : <><I.Link /> Share Link</>}
+              </button>
             ) : (
               <>
-                <p style={{ ...S.modalDesc, marginBottom: 8 }}>
-                  {exportIsUrl ? `Send this link to ${otherName}. All data is encrypted in the URL.` : "Too many expenses for a URL — copy this encrypted text instead."}
-                </p>
+                <p style={{ ...S.modalDesc, marginBottom: 8 }}>Too many expenses for a URL — copy this encrypted text instead.</p>
                 <textarea ref={taRef} readOnly value={exportResult}
                   style={{ ...S.expTA, ...(exportIsUrl ? { minHeight: 72, color: "#7ab8f5", fontSize: 11 } : {}) }} />
                 <button onClick={handleCopy} style={S.copyBtn}>
-                  {copied ? <><I.Chk /> Copied!</> : <><I.Copy /> {exportIsUrl ? "Copy Link" : "Copy Text"}</>}
+                  {copied ? <><I.Chk /> Copied!</> : <><I.Copy /> Copy Text</>}
                 </button>
               </>
             )}
@@ -540,7 +587,7 @@ function ExpenseTracker() {
       <header style={S.header}>
         <span style={S.hdrName}><I.User /> {myName}</span>
         <button onClick={() => { setExportResult(""); setExportIsUrl(false); setExportStatus(myStatus); setModal("export"); }} style={S.hdrBtnExp}>
-          <I.Down /> Export
+          <I.Up /> Share
         </button>
       </header>
 
@@ -644,7 +691,7 @@ function ExpenseTracker() {
       </div>
 
       <div style={S.footer}>
-        <button onClick={resetEverything} style={S.resetBtn}>Reset everything</button>
+        <button onClick={startNewTally} style={S.resetBtn}>Start a new tally</button>
       </div>
     </div>
   );
@@ -777,9 +824,17 @@ function LandingPage({ onLaunch }) {
 // ─── APP SHELL ────────────────────────────────────────────────────────────────
 
 export default function Schplitz() {
-  const [view, setView] = useState("landing");
-  if (view === "app") return <ExpenseTracker />;
-  return <LandingPage onLaunch={() => setView("app")} />;
+  const getInitialView = () => {
+    if (window.location.hash.startsWith("#share=")) return "app";
+    try { const s = localStorage.getItem("schplitzExpenses"); if (s && JSON.parse(s).initialized) return "app"; } catch {}
+    return sessionStorage.getItem("schplitz_launched") === "1" ? "app" : "landing";
+  };
+  const [view, setView] = useState(getInitialView);
+  const [resetKey, setResetKey] = useState(0);
+  const launchApp = () => { sessionStorage.setItem("schplitz_launched", "1"); setView("app"); };
+  const startFresh = () => { setView("app"); setResetKey(k => k + 1); };
+  if (view === "app") return <ExpenseTracker key={resetKey} onResetToSetup={startFresh} />;
+  return <LandingPage onLaunch={launchApp} />;
 }
 
 // ─── STYLES ──────────────────────────────────────────────────────────────────
