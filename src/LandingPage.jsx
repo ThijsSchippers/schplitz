@@ -123,7 +123,7 @@ export default function LandingPage({ onLaunch }) {
       <section className="lp-hero" style={L.hero}>
         {/* Left: text */}
         <div className="lp-hero-left" style={L.heroLeft}>
-          <span style={L.eyebrow}>SCHPLITZ v1 // CLIENT-SIDE ONLY</span>
+          <span style={L.eyebrow}>SCHPLITZ // CLIENT-SIDE ONLY</span>
           <h1 style={L.heroH1}>
             Don't let your purchase history{" "}
             <span style={L.accent}>haunt</span> your future.
