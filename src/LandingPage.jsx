@@ -50,6 +50,48 @@ const STEPS = [
   { n: "04", title: "See who owes what",      body: "Schplitz calculates the balance across currencies at the historical exchange rate. No account required — just the number." },
 ];
 
+// ─── RESPONSIVE CSS ───────────────────────────────────────────────────────────
+
+const RESPONSIVE_CSS = `
+  /* Tablet ≤ 900px */
+  @media (max-width: 900px) {
+    .lp-nav          { padding: 16px 24px !important; }
+    .lp-hero         { grid-template-columns: 1fr !important; min-height: auto !important; }
+    .lp-hero-left    { padding: 64px 24px 48px !important; }
+    .lp-hero-right   { height: 54vw; min-height: 220px; position: relative !important; }
+    .lp-hero-bleed   { background: linear-gradient(to bottom, #09090d 0%, rgba(9,9,13,0.15) 35%, transparent 65%) !important; }
+    .lp-moments      { height: 56vw !important; max-height: 380px !important; }
+    .lp-prob-grid    { grid-template-columns: 1fr 1fr !important; }
+    .lp-section      { padding: 80px 24px !important; }
+    .lp-spec-panel   { grid-template-columns: 1fr !important; }
+    .lp-spec-img     { display: none !important; }
+    .lp-spec-content { padding: 64px 24px !important; }
+    .lp-footer       { padding: 40px 24px !important; }
+  }
+
+  /* Mobile ≤ 640px */
+  @media (max-width: 640px) {
+    .lp-hero-left    { padding: 48px 20px 40px !important; }
+    .lp-hero-right   { height: 72vw !important; }
+    .lp-moments      {
+      grid-template-columns: repeat(3, 82vw) !important;
+      height: 76vw !important;
+      max-height: 420px !important;
+      overflow-x: auto !important;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+    }
+    .lp-moment       { scroll-snap-align: start; }
+    .lp-prob-grid    { grid-template-columns: 1fr !important; }
+    .lp-prob-card    { height: 300px !important; }
+    .lp-section      { padding: 64px 20px !important; }
+    .lp-step         { grid-template-columns: 44px 1fr !important; gap: 18px !important; }
+    .lp-step-num     { font-size: 26px !important; }
+    .lp-spec-content { padding: 56px 20px !important; }
+    .lp-footer       { flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; padding: 36px 20px !important; }
+  }
+`;
+
 // ─── COMPONENT ───────────────────────────────────────────────────────────────
 
 export default function LandingPage({ onLaunch }) {
@@ -62,17 +104,18 @@ export default function LandingPage({ onLaunch }) {
 
   return (
     <div style={L.page}>
+      <style>{RESPONSIVE_CSS}</style>
 
       {/* ── NAV ── */}
-      <nav style={L.nav}>
+      <nav className="lp-nav" style={L.nav}>
         <span style={L.logo}>SCHPLITZ</span>
         <button onClick={onLaunch} style={L.navCta}>OPEN APP</button>
       </nav>
 
       {/* ── HERO ── */}
-      <section style={L.hero}>
+      <section className="lp-hero" style={L.hero}>
         {/* Left: text */}
-        <div style={L.heroLeft}>
+        <div className="lp-hero-left" style={L.heroLeft}>
           <span style={L.eyebrow}>SCHPLITZ v1 // CLIENT-SIDE ONLY</span>
           <h1 style={L.heroH1}>
             Don't let your purchase history{" "}
@@ -103,16 +146,16 @@ export default function LandingPage({ onLaunch }) {
         </div>
 
         {/* Right: photo */}
-        <div style={L.heroRight}>
+        <div className="lp-hero-right" style={L.heroRight}>
           <img src="/images/city-night.jpg" alt="" style={L.heroImg} loading="eager" />
-          <div style={L.heroBleed} />
+          <div className="lp-hero-bleed" style={L.heroBleed} />
         </div>
       </section>
 
       {/* ── MOMENT STRIP ── */}
-      <div style={L.moments}>
+      <div className="lp-moments" style={L.moments}>
         {MOMENTS.map(m => (
-          <div key={m.loc} style={L.moment}>
+          <div className="lp-moment" key={m.loc} style={L.moment}>
             <img src={m.src} alt="" style={L.momentImg} loading="lazy" />
             <div style={L.momentScrim} />
             <div style={L.momentMeta}>
@@ -125,14 +168,14 @@ export default function LandingPage({ onLaunch }) {
       </div>
 
       {/* ── PROBLEM ── */}
-      <section style={L.section}>
+      <section className="lp-section" style={L.section}>
         <div style={L.sectionHead}>
           <span style={L.eyebrow}>THE UNCOMFORTABLE TRUTH</span>
           <h2 style={L.sectionH2}>Other apps know <span style={L.accent}>too much.</span></h2>
         </div>
-        <div style={L.problemGrid}>
+        <div className="lp-prob-grid" style={L.problemGrid}>
           {PROBLEMS.map(c => (
-            <div key={c.title} style={L.probCard}>
+            <div className="lp-prob-card" key={c.title} style={L.probCard}>
               <img src={c.src} alt="" style={L.probImg} loading="lazy" />
               <div style={L.probOverlay}>
                 <h3 style={L.probTitle}>{c.title}</h3>
@@ -157,15 +200,15 @@ export default function LandingPage({ onLaunch }) {
       </div>
 
       {/* ── HOW IT WORKS ── */}
-      <section style={{ ...L.section, maxWidth: 840 }}>
+      <section className="lp-section" style={{ ...L.section, maxWidth: 840 }}>
         <div style={L.sectionHead}>
           <span style={L.eyebrow}>HOW IT WORKS</span>
           <h2 style={L.sectionH2}>Simple.<br /><span style={L.accent}>By design.</span></h2>
         </div>
         <div>
           {STEPS.map((s, i) => (
-            <div key={s.n} style={{ ...L.step, ...(i === 0 ? { borderTop: "1px solid rgba(255,255,255,0.06)" } : {}) }}>
-              <span style={L.stepNum}>{s.n}</span>
+            <div className="lp-step" key={s.n} style={{ ...L.step, ...(i === 0 ? { borderTop: "1px solid rgba(255,255,255,0.06)" } : {}) }}>
+              <span className="lp-step-num" style={L.stepNum}>{s.n}</span>
               <div>
                 <h3 style={L.stepTitle}>{s.title}</h3>
                 <p style={L.stepDesc}>{s.body}</p>
@@ -176,17 +219,17 @@ export default function LandingPage({ onLaunch }) {
       </section>
 
       {/* ── TECH SPEC PANEL ── */}
-      <div style={L.specPanel}>
-        <div style={L.specImgWrap}>
+      <div className="lp-spec-panel" style={L.specPanel}>
+        <div className="lp-spec-img" style={L.specImgWrap}>
           <img src="/images/managing-finances.jpg" alt="" style={L.specImg} loading="lazy" />
           <div style={L.specBleed} />
         </div>
-        <div style={L.specContent}>
+        <div className="lp-spec-content" style={L.specContent}>
           <span style={L.eyebrow}>TECHNICAL SPECIFICATION</span>
           <h2 style={L.specH2}>Built on Web Crypto.<br /><span style={L.accent}>Nothing else.</span></h2>
           <table style={L.specTable}>
             <tbody>
-              {FULL_SPEC_ROWS.map(([k, v], i) => (
+              {FULL_SPEC_ROWS.map(([k, v]) => (
                 <tr key={k} style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                   <td style={L.specKey}>{k}</td>
                   <td style={L.specVal}>{v}</td>
@@ -215,7 +258,7 @@ export default function LandingPage({ onLaunch }) {
       </section>
 
       {/* ── FOOTER ── */}
-      <footer style={L.footer}>
+      <footer className="lp-footer" style={L.footer}>
         <span style={L.footerLogo}>SCHPLITZ</span>
         <span style={L.footerMid}>AES-256-GCM · PBKDF2 · NO SERVER</span>
         <span style={L.footerRight}>Proudly built in Niederwalluf.</span>
