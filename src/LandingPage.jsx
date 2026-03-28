@@ -1,91 +1,124 @@
-const Arrow = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-    <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-  </svg>
-);
+import { useState, useEffect } from "react";
+
+// ─── CONSTANTS ───────────────────────────────────────────────────────────────
+
+const MONO  = "'Courier New',Courier,monospace";
+const SERIF = "Georgia,'Times New Roman',serif";
+const SANS  = "system-ui,-apple-system,sans-serif";
 
 const SPEC_ROWS = [
-  ["cipher",    "AES-256-GCM"],
-  ["key_len",   "256 bit"],
-  ["kdf",       "PBKDF2-SHA256"],
-  ["iterations","200,000"],
-  ["salt",      "128 bit · random"],
-  ["iv",        "96 bit · random"],
-  ["storage",   "device only"],
-  ["servers",   "0"],
+  ["CIPHER",      "AES-256-GCM"],
+  ["KDF",         "PBKDF2-SHA256"],
+  ["ITERATIONS",  "200,000"],
+  ["SALT",        "16 bytes · random"],
+  ["IV",          "12 bytes · random"],
+  ["STORAGE",     "localStorage (your device)"],
+  ["NETWORK",     "none"],
+];
+
+const FULL_SPEC_ROWS = [
+  ["CIPHER",          "AES-256-GCM"],
+  ["KEY DERIVATION",  "PBKDF2-SHA256"],
+  ["KDF ITERATIONS",  "200,000"],
+  ["SALT LENGTH",     "128-bit (16 bytes, random)"],
+  ["IV LENGTH",       "96-bit (12 bytes, random)"],
+  ["PLAINTEXT FORMAT","JSON · UTF-8"],
+  ["COMPRESSION",     "deflate-raw (URL payload)"],
+  ["STORAGE",         "localStorage · client only"],
+  ["NETWORK CALLS",   "None (currency API optional)"],
+  ["TELEMETRY",       "None"],
+  ["SERVER",          "None"],
+  ["ACCOUNT REQUIRED","No"],
 ];
 
 const MOMENTS = [
-  { src: "/images/bar-friends.jpg",  label: "round of drinks",  amt: "€47.20 / 2" },
-  { src: "/images/beach-friends.jpg",label: "beach day",        amt: "€89.50 / 2" },
-  { src: "/images/coffee-chat.jpg",  label: "coffee & pastry",  amt: "€11.80 / 2" },
+  { src: "/images/bar-couple.jpg",    loc: "BAR / BERLIN",   amt: "€ 34.50", split: "÷ 2 = € 17.25" },
+  { src: "/images/beach-friends.jpg", loc: "BEACH / SPLIT",  amt: "€ 127.80",split: "÷ 2 = € 63.90" },
+  { src: "/images/coffee-chat.jpg",   loc: "CAFÉ / LISBON",  amt: "€ 12.20", split: "÷ 2 = € 6.10"  },
+];
+
+const PROBLEMS = [
+  { src: "/images/city-night.jpg",   title: "Synced to the cloud",       body: "Every expense uploaded to a server you don't own." },
+  { src: "/images/bar-friends.jpg",  title: "Mined for insights",        body: "Your spending habits become data points in someone else's system." },
+  { src: "/images/hiking.jpg",       title: "Shared with third parties",  body: "Ad networks, processors — your data gets passed around." },
 ];
 
 const STEPS = [
-  { n: "01", title: "Agree on a shared secret",  body: "Pick a security question only you two know the answer to. That answer becomes the encryption key — we never see it." },
-  { n: "02", title: "Log your expenses",          body: "Add what you spent. Everything stays on your device. Nothing leaves without your explicit action." },
-  { n: "03", title: "Share an encrypted link",    body: "Generate a share link. Your expenses are encrypted before they touch the URL. The other person decrypts with the same answer." },
-  { n: "04", title: "Settle up",                  body: "Schplitz calculates who owes what across all currencies at the historical exchange rate. No account required — just the number." },
+  { n: "01", title: "Set a shared secret",    body: "Pick a security question only you two would know. The answer is the encryption key — we never see it." },
+  { n: "02", title: "Log your expenses",      body: "Add what you spent. Everything stays on your device. Nothing is transmitted without your action." },
+  { n: "03", title: "Share an encrypted link",body: "Generate a link. Your expenses are encrypted before they touch the URL. The other person decrypts with the same answer." },
+  { n: "04", title: "See who owes what",      body: "Schplitz calculates the balance across currencies at the historical exchange rate. No account required — just the number." },
 ];
 
+// ─── COMPONENT ───────────────────────────────────────────────────────────────
+
 export default function LandingPage({ onLaunch }) {
+  const [cursorVisible, setCursorVisible] = useState(true);
+
+  useEffect(() => {
+    const id = setInterval(() => setCursorVisible(v => !v), 600);
+    return () => clearInterval(id);
+  }, []);
+
   return (
     <div style={L.page}>
 
       {/* ── NAV ── */}
       <nav style={L.nav}>
-        <span style={L.logo}>schplitz</span>
-        <button onClick={onLaunch} style={L.navCta}>Open App</button>
+        <span style={L.logo}>SCHPLITZ</span>
+        <button onClick={onLaunch} style={L.navCta}>OPEN APP</button>
       </nav>
 
       {/* ── HERO ── */}
       <section style={L.hero}>
+        {/* Left: text */}
         <div style={L.heroLeft}>
-          <span style={L.eyebrow}>expense splitting</span>
+          <span style={L.eyebrow}>SCHPLITZ v1 // CLIENT-SIDE ONLY</span>
           <h1 style={L.heroH1}>
-            Split the bill.<br />
-            Not your<br />
-            <span style={L.accent}>privacy.</span>
+            Don't let your purchase history{" "}
+            <span style={L.accent}>haunt</span> your future.
           </h1>
-          <p style={L.heroP}>
-            Log expenses for trips, dinners, and everyday moments.
-            Everything is encrypted on your device — nothing stored in the cloud.
-          </p>
+
+          {/* Terminal spec box */}
           <div style={L.termBox}>
-            <div style={L.termHeader}>
-              <span style={L.termDot} /><span style={L.termDot} /><span style={L.termDot} />
-              <span style={L.termTitle}>schplitz · privacy model</span>
-            </div>
-            {SPEC_ROWS.slice(0, 4).map(([k, v]) => (
+            {SPEC_ROWS.map(([k, v]) => (
               <div key={k} style={L.termRow}>
                 <span style={L.termKey}>{k}</span>
-                <span style={L.termEq}>=</span>
                 <span style={L.termVal}>{v}</span>
               </div>
             ))}
+            <div style={L.termRow}>
+              <span style={L.termKey}>STATUS</span>
+              <span style={L.termVal}>
+                READY
+                <span style={{ ...L.cursor, opacity: cursorVisible ? 0.8 : 0 }} />
+              </span>
+            </div>
           </div>
+
           <div style={L.heroActs}>
-            <button onClick={onLaunch} style={L.heroCta}>
-              Start splitting <Arrow />
-            </button>
-            <span style={L.heroNote}>no account · no cloud · no tracking</span>
+            <button onClick={onLaunch} style={L.heroCta}>OPEN SCHPLITZ →</button>
+            <span style={L.heroNote}>NO ACCOUNT · NO DATABASE · NO CLOUD</span>
           </div>
         </div>
+
+        {/* Right: photo */}
         <div style={L.heroRight}>
-          <img src="/images/hiking.jpg" alt="" style={L.heroImg} loading="eager" />
-          <div style={L.heroImgFade} />
+          <img src="/images/city-night.jpg" alt="" style={L.heroImg} loading="eager" />
+          <div style={L.heroBleed} />
         </div>
       </section>
 
       {/* ── MOMENT STRIP ── */}
       <div style={L.moments}>
         {MOMENTS.map(m => (
-          <div key={m.label} style={L.moment}>
+          <div key={m.loc} style={L.moment}>
             <img src={m.src} alt="" style={L.momentImg} loading="lazy" />
-            <div style={L.momentOverlay} />
+            <div style={L.momentScrim} />
             <div style={L.momentMeta}>
-              <span style={L.momentLabel}>{m.label}</span>
+              <span style={L.momentLoc}>{m.loc}</span>
               <span style={L.momentAmt}>{m.amt}</span>
+              <span style={L.momentSplit}>{m.split}</span>
             </div>
           </div>
         ))}
@@ -94,20 +127,14 @@ export default function LandingPage({ onLaunch }) {
       {/* ── PROBLEM ── */}
       <section style={L.section}>
         <div style={L.sectionHead}>
-          <span style={L.eyebrow}>the uncomfortable truth</span>
-          <h2 style={L.sectionH2}>Other apps track<br /><span style={L.accent}>more than your tab.</span></h2>
+          <span style={L.eyebrow}>THE UNCOMFORTABLE TRUTH</span>
+          <h2 style={L.sectionH2}>Other apps know <span style={L.accent}>too much.</span></h2>
         </div>
         <div style={L.problemGrid}>
-          {[
-            { src: "/images/city-night.jpg",        title: "Synced to the cloud",       body: "Every expense you log is uploaded to a server you don't own, run by a company you've never met." },
-            { src: "/images/bar-couple.jpg",         title: "Mined for insights",        body: "Your spending habits become data points. Someone, somewhere, is learning what you buy." },
-            { src: "/images/managing-finances.jpg",  title: "Shared with third parties", body: "Ad networks, analytics, payment processors — your data gets passed around." },
-          ].map(c => (
+          {PROBLEMS.map(c => (
             <div key={c.title} style={L.probCard}>
-              <div style={L.probImgWrap}>
-                <img src={c.src} alt="" style={L.probImg} loading="lazy" />
-              </div>
-              <div style={L.probText}>
+              <img src={c.src} alt="" style={L.probImg} loading="lazy" />
+              <div style={L.probOverlay}>
                 <h3 style={L.probTitle}>{c.title}</h3>
                 <p style={L.probBody}>{c.body}</p>
               </div>
@@ -119,27 +146,27 @@ export default function LandingPage({ onLaunch }) {
       {/* ── PHOTO BREAK + QUOTE ── */}
       <div style={L.photoBreak}>
         <img src="/images/couple-nature.jpg" alt="" style={L.photoBreakImg} loading="lazy" />
-        <div style={L.photoBreakDim} />
+        <div style={L.photoBreakScrim} />
         <div style={L.photoBreakContent}>
           <div style={L.quoteLine} />
           <p style={L.quoteText}>
-            "The best place to store sensitive data is&nbsp;somewhere no one else can reach it."
+            "The best place to store sensitive data is somewhere no one else can reach it."
           </p>
-          <span style={L.quoteAttr}>The only server Schplitz uses is your device.</span>
+          <span style={L.quoteAttr}>SCHPLITZ · CLIENT-SIDE ONLY</span>
         </div>
       </div>
 
       {/* ── HOW IT WORKS ── */}
-      <section style={L.section}>
+      <section style={{ ...L.section, maxWidth: 840 }}>
         <div style={L.sectionHead}>
-          <span style={L.eyebrow}>how it works</span>
+          <span style={L.eyebrow}>HOW IT WORKS</span>
           <h2 style={L.sectionH2}>Simple.<br /><span style={L.accent}>By design.</span></h2>
         </div>
-        <div style={L.steps}>
+        <div>
           {STEPS.map((s, i) => (
-            <div key={s.n} style={{ ...L.step, ...(i === STEPS.length - 1 ? { borderBottom: "none" } : {}) }}>
+            <div key={s.n} style={{ ...L.step, ...(i === 0 ? { borderTop: "1px solid rgba(255,255,255,0.06)" } : {}) }}>
               <span style={L.stepNum}>{s.n}</span>
-              <div style={L.stepBody}>
+              <div>
                 <h3 style={L.stepTitle}>{s.title}</h3>
                 <p style={L.stepDesc}>{s.body}</p>
               </div>
@@ -151,44 +178,47 @@ export default function LandingPage({ onLaunch }) {
       {/* ── TECH SPEC PANEL ── */}
       <div style={L.specPanel}>
         <div style={L.specImgWrap}>
-          <img src="/images/sunset-couple.jpg" alt="" style={L.specImg} loading="lazy" />
+          <img src="/images/managing-finances.jpg" alt="" style={L.specImg} loading="lazy" />
+          <div style={L.specBleed} />
         </div>
         <div style={L.specContent}>
-          <span style={L.eyebrow}>under the hood</span>
-          <h2 style={L.specH2}>Built to be<br /><span style={L.accent}>unreadable.</span></h2>
-          <p style={L.specP}>
-            Every share link is encrypted before it leaves your browser.
-            Even if someone intercepts it, they see only ciphertext.
+          <span style={L.eyebrow}>TECHNICAL SPECIFICATION</span>
+          <h2 style={L.specH2}>Built on Web Crypto.<br /><span style={L.accent}>Nothing else.</span></h2>
+          <table style={L.specTable}>
+            <tbody>
+              {FULL_SPEC_ROWS.map(([k, v], i) => (
+                <tr key={k} style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <td style={L.specKey}>{k}</td>
+                  <td style={L.specVal}>{v}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p style={L.specNote}>
+            All cryptographic operations use the browser's native SubtleCrypto API.
           </p>
-          <div style={L.specTable}>
-            {SPEC_ROWS.map(([k, v], i) => (
-              <div key={k} style={{ ...L.specRow, ...(i === SPEC_ROWS.length - 1 ? { borderBottom: "none" } : {}) }}>
-                <span style={L.specKey}>{k}</span>
-                <span style={L.specVal}>{v}</span>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
 
       {/* ── CTA ── */}
       <section style={L.ctaSection}>
-        <img src="/images/bar-friends.jpg" alt="" style={L.ctaBgImg} loading="lazy" />
-        <div style={L.ctaDim} />
+        <img src="/images/sunset-couple.jpg" alt="" style={L.ctaBgImg} loading="lazy" />
+        <div style={L.ctaScrim} />
         <div style={L.ctaInner}>
-          <h2 style={L.ctaH2}>Your money.<br /><span style={L.accent}>Your business.</span></h2>
-          <p style={L.ctaP}>No downloads. No installs. Just open and go.</p>
-          <button onClick={onLaunch} style={L.heroCta}>
-            Open Schplitz <Arrow />
-          </button>
-          <span style={L.heroNote}>no account · no cloud · no tracking</span>
+          <span style={L.eyebrow}>READY WHEN YOU ARE</span>
+          <h2 style={L.ctaH2}>
+            Your money.<br /><span style={L.accent}>Your business.</span>
+          </h2>
+          <p style={L.ctaNote}>NO DOWNLOADS · NO INSTALLS · OPEN AND GO</p>
+          <button onClick={onLaunch} style={L.heroCta}>OPEN SCHPLITZ →</button>
         </div>
       </section>
 
       {/* ── FOOTER ── */}
       <footer style={L.footer}>
-        <span style={L.footerLogo}>schplitz</span>
-        <span style={L.footerCopy}>Proudly built in Niederwalluf.</span>
+        <span style={L.footerLogo}>SCHPLITZ</span>
+        <span style={L.footerMid}>AES-256-GCM · PBKDF2 · NO SERVER</span>
+        <span style={L.footerRight}>Proudly built in Niederwalluf.</span>
       </footer>
 
     </div>
@@ -197,107 +227,97 @@ export default function LandingPage({ onLaunch }) {
 
 // ─── STYLES ──────────────────────────────────────────────────────────────────
 
-const MONO = "'SF Mono','Cascadia Code','Consolas',monospace";
-const SERIF = "Georgia,serif";
-const SANS = "system-ui,-apple-system,sans-serif";
-
 const L = {
-  // Page
-  page:           { background: "#09090d", color: "#fff", fontFamily: SERIF, minHeight: "100vh", overflowX: "hidden" },
+  page:         { background: "#09090d", color: "#fff", fontFamily: SERIF, minHeight: "100vh", overflowX: "hidden" },
 
   // Nav
-  nav:            { position: "sticky", top: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 40px", background: "rgba(9,9,13,0.88)", backdropFilter: "blur(16px)", borderBottom: "1px solid rgba(255,255,255,0.06)" },
-  logo:           { fontFamily: MONO, fontSize: 17, fontWeight: 700, color: "#fff", letterSpacing: "-0.3px" },
-  navCta:         { fontFamily: SANS, padding: "8px 20px", background: "transparent", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 7, color: "rgba(255,255,255,0.75)", fontSize: 13, fontWeight: 500, cursor: "pointer" },
+  nav:          { position: "sticky", top: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 60px", background: "rgba(9,9,13,0.82)", backdropFilter: "blur(16px)", borderBottom: "1px solid rgba(255,255,255,0.06)" },
+  logo:         { fontFamily: MONO, fontSize: 13, fontWeight: 700, letterSpacing: "0.14em", color: "#fff" },
+  navCta:       { fontFamily: MONO, fontSize: 11, fontWeight: 600, letterSpacing: "0.14em", padding: "9px 20px", background: "transparent", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 4, color: "rgba(255,255,255,0.75)", cursor: "pointer" },
 
   // Hero
-  hero:           { display: "flex", alignItems: "stretch", minHeight: "100vh", flexWrap: "wrap" },
-  heroLeft:       { flex: "1 1 500px", padding: "100px 64px 80px", display: "flex", flexDirection: "column", justifyContent: "center", gap: 32 },
-  heroRight:      { flex: "1 1 380px", position: "relative", minHeight: 500, overflow: "hidden" },
-  heroImg:        { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 25%" },
-  heroImgFade:    { position: "absolute", inset: 0, background: "linear-gradient(to right, #09090d 0%, transparent 40%)" },
+  hero:         { display: "grid", gridTemplateColumns: "1fr 1fr", minHeight: "100vh", overflow: "hidden" },
+  heroLeft:     { padding: "100px 60px 80px", display: "flex", flexDirection: "column", justifyContent: "center", gap: 32, background: "#09090d" },
+  heroRight:    { position: "relative", overflow: "hidden" },
+  heroImg:      { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center center" },
+  heroBleed:    { position: "absolute", inset: 0, background: "linear-gradient(to right, #09090d 0%, rgba(9,9,13,0.4) 20%, transparent 45%)" },
 
-  eyebrow:        { fontFamily: MONO, fontSize: 10, fontWeight: 500, textTransform: "uppercase", letterSpacing: "3.5px", color: "#e8d44d", display: "block" },
-  heroH1:         { fontFamily: SERIF, fontSize: "clamp(42px,5.5vw,72px)", fontWeight: 700, lineHeight: 1.04, color: "#fff", margin: 0, letterSpacing: "-3px" },
-  accent:         { color: "#e8d44d" },
-  heroP:          { fontFamily: SANS, fontSize: 16, lineHeight: 1.8, color: "rgba(255,255,255,0.45)", maxWidth: 420, margin: 0, fontWeight: 400 },
+  eyebrow:      { fontFamily: MONO, fontSize: 10, fontWeight: 600, letterSpacing: "0.22em", color: "#e8d44d", display: "block" },
+  heroH1:       { fontFamily: SERIF, fontSize: "clamp(36px,4.2vw,62px)", fontWeight: 700, lineHeight: 1.06, letterSpacing: "-2.5px", color: "#fff", margin: 0 },
+  accent:       { color: "#e8d44d" },
 
-  // Terminal spec box
-  termBox:        { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, overflow: "hidden", maxWidth: 400 },
-  termHeader:     { display: "flex", alignItems: "center", gap: 6, padding: "10px 14px", background: "rgba(255,255,255,0.04)", borderBottom: "1px solid rgba(255,255,255,0.06)" },
-  termDot:        { width: 9, height: 9, borderRadius: "50%", background: "rgba(255,255,255,0.12)", display: "inline-block" },
-  termTitle:      { fontFamily: MONO, fontSize: 10, color: "rgba(255,255,255,0.25)", marginLeft: 4, letterSpacing: "0.5px" },
-  termRow:        { display: "flex", alignItems: "baseline", gap: 10, padding: "9px 14px", borderBottom: "1px solid rgba(255,255,255,0.04)" },
-  termKey:        { fontFamily: MONO, fontSize: 11, color: "rgba(255,255,255,0.3)", minWidth: 80, flexShrink: 0 },
-  termEq:         { fontFamily: MONO, fontSize: 11, color: "rgba(232,212,77,0.4)", flexShrink: 0 },
-  termVal:        { fontFamily: MONO, fontSize: 11, color: "rgba(255,255,255,0.7)" },
+  // Terminal box
+  termBox:      { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 6, padding: "18px 20px", fontFamily: MONO, fontSize: 11, lineHeight: 1.9 },
+  termRow:      { display: "flex", gap: 16, alignItems: "center" },
+  termKey:      { color: "rgba(255,255,255,0.25)", minWidth: 100, flexShrink: 0, letterSpacing: "0.06em" },
+  termVal:      { color: "rgba(232,212,77,0.85)", display: "flex", alignItems: "center", gap: 6 },
+  cursor:       { display: "inline-block", width: 7, height: 11, background: "#e8d44d", verticalAlign: "middle", marginLeft: 4, transition: "opacity 0.1s" },
 
-  heroActs:       { display: "flex", flexDirection: "column", gap: 14, alignItems: "flex-start" },
-  heroCta:        { display: "inline-flex", alignItems: "center", gap: 10, background: "#e8d44d", border: "none", borderRadius: 9, color: "#09090d", padding: "14px 28px", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: SANS, letterSpacing: "-0.1px" },
-  heroNote:       { fontFamily: MONO, fontSize: 10, color: "rgba(255,255,255,0.2)", letterSpacing: "0.5px" },
+  heroActs:     { display: "flex", flexDirection: "column", gap: 14, alignItems: "flex-start" },
+  heroCta:      { fontFamily: MONO, fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", display: "inline-flex", alignItems: "center", gap: 10, background: "#e8d44d", border: "none", borderRadius: 4, color: "#09090d", padding: "14px 32px", cursor: "pointer" },
+  heroNote:     { fontFamily: MONO, fontSize: 10, letterSpacing: "0.14em", color: "rgba(255,255,255,0.2)" },
 
   // Moment strip
-  moments:        { display: "grid", gridTemplateColumns: "repeat(3,1fr)", height: 360 },
-  moment:         { position: "relative", overflow: "hidden" },
-  momentImg:      { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", transition: "transform 0.6s ease" },
-  momentOverlay:  { position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(9,9,13,0.85) 0%, rgba(9,9,13,0.1) 50%, transparent 100%)" },
-  momentMeta:     { position: "absolute", bottom: 0, left: 0, right: 0, padding: "20px 22px", display: "flex", justifyContent: "space-between", alignItems: "flex-end" },
-  momentLabel:    { fontFamily: SANS, fontSize: 12, color: "rgba(255,255,255,0.55)", fontWeight: 400 },
-  momentAmt:      { fontFamily: MONO, fontSize: 13, color: "#e8d44d", fontWeight: 600, letterSpacing: "-0.3px" },
+  moments:      { display: "grid", gridTemplateColumns: "repeat(3,1fr)", height: "45vw", maxHeight: 480 },
+  moment:       { position: "relative", overflow: "hidden" },
+  momentImg:    { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" },
+  momentScrim:  { position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(9,9,13,0.88) 0%, transparent 55%)" },
+  momentMeta:   { position: "absolute", bottom: 24, left: 24, display: "flex", flexDirection: "column", gap: 4 },
+  momentLoc:    { fontFamily: MONO, fontSize: 10, letterSpacing: "0.2em", color: "rgba(255,255,255,0.45)" },
+  momentAmt:    { fontFamily: MONO, fontSize: "clamp(24px,3.2vw,42px)", fontWeight: 700, color: "#fff", letterSpacing: "-0.02em", lineHeight: 1 },
+  momentSplit:  { fontFamily: MONO, fontSize: 11, color: "#e8d44d", letterSpacing: "0.04em" },
 
   // Sections
-  section:        { maxWidth: 1100, margin: "0 auto", padding: "120px 64px" },
-  sectionHead:    { marginBottom: 64 },
-  sectionH2:      { fontFamily: SERIF, fontSize: "clamp(34px,5vw,54px)", fontWeight: 700, lineHeight: 1.1, color: "#fff", margin: "14px 0 0", letterSpacing: "-2.5px" },
+  section:      { maxWidth: 1100, margin: "0 auto", padding: "120px 60px" },
+  sectionHead:  { marginBottom: 56 },
+  sectionH2:    { fontFamily: SERIF, fontSize: "clamp(34px,5vw,54px)", fontWeight: 700, lineHeight: 1.08, letterSpacing: "-2px", color: "#fff", margin: "12px 0 0" },
 
-  // Problem cards
-  problemGrid:    { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 1, background: "rgba(255,255,255,0.06)", borderRadius: 16, overflow: "hidden" },
-  probCard:       { background: "#09090d", overflow: "hidden", display: "flex", flexDirection: "column" },
-  probImgWrap:    { overflow: "hidden", height: 220 },
-  probImg:        { width: "100%", height: "100%", objectFit: "cover", display: "block" },
-  probText:       { padding: "24px 28px 32px", flex: 1 },
-  probTitle:      { fontFamily: SANS, fontSize: 15, fontWeight: 600, color: "#fff", margin: "0 0 10px", letterSpacing: "-0.2px" },
-  probBody:       { fontFamily: SANS, fontSize: 13, lineHeight: 1.75, color: "rgba(255,255,255,0.35)", margin: 0 },
+  // Problem cards — text ON the photo
+  problemGrid:  { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 2 },
+  probCard:     { position: "relative", overflow: "hidden", height: 400 },
+  probImg:      { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" },
+  probOverlay:  { position: "absolute", bottom: 0, left: 0, right: 0, padding: "80px 24px 28px", background: "linear-gradient(to top, rgba(9,9,13,0.95) 0%, transparent 100%)" },
+  probTitle:    { fontFamily: SERIF, fontSize: 18, fontWeight: 700, color: "#fff", margin: "0 0 8px", lineHeight: 1.2 },
+  probBody:     { fontFamily: MONO, fontSize: 11, lineHeight: 1.7, color: "rgba(255,255,255,0.45)", margin: 0 },
 
   // Photo break
-  photoBreak:     { position: "relative", height: 520, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" },
-  photoBreakImg:  { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 35%" },
-  photoBreakDim:  { position: "absolute", inset: 0, background: "rgba(9,9,13,0.65)" },
-  photoBreakContent:{ position: "relative", zIndex: 1, textAlign: "center", maxWidth: 680, padding: "0 40px", display: "flex", flexDirection: "column", alignItems: "center", gap: 20 },
-  quoteLine:      { width: 36, height: 2, background: "#e8d44d", borderRadius: 1 },
-  quoteText:      { fontFamily: SERIF, fontSize: "clamp(20px,3.5vw,32px)", fontWeight: 400, color: "rgba(255,255,255,0.85)", lineHeight: 1.5, margin: 0, letterSpacing: "-0.5px" },
-  quoteAttr:      { fontFamily: MONO, fontSize: 11, color: "rgba(255,255,255,0.3)", letterSpacing: "0.5px" },
+  photoBreak:         { position: "relative", height: "70vh", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" },
+  photoBreakImg:      { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 40%" },
+  photoBreakScrim:    { position: "absolute", inset: 0, background: "rgba(9,9,13,0.52)" },
+  photoBreakContent:  { position: "relative", zIndex: 1, textAlign: "center", maxWidth: 680, padding: "0 40px", display: "flex", flexDirection: "column", alignItems: "center", gap: 20 },
+  quoteLine:          { width: 48, height: 1, background: "#e8d44d" },
+  quoteText:          { fontFamily: SERIF, fontSize: "clamp(20px,3.5vw,34px)", fontWeight: 400, fontStyle: "italic", color: "#fff", lineHeight: 1.5, letterSpacing: "-0.3px", margin: 0 },
+  quoteAttr:          { fontFamily: MONO, fontSize: 10, letterSpacing: "0.2em", color: "rgba(255,255,255,0.35)" },
 
   // Steps
-  steps:          { border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, overflow: "hidden" },
-  step:           { display: "flex", gap: 36, padding: "32px 36px", borderBottom: "1px solid rgba(255,255,255,0.05)", alignItems: "flex-start" },
-  stepNum:        { fontFamily: MONO, fontSize: 12, color: "rgba(232,212,77,0.5)", flexShrink: 0, marginTop: 3, letterSpacing: "1px", minWidth: 24 },
-  stepBody:       { flex: 1 },
-  stepTitle:      { fontFamily: SANS, fontSize: 15, fontWeight: 600, color: "#fff", margin: "0 0 8px", letterSpacing: "-0.2px" },
-  stepDesc:       { fontFamily: SANS, fontSize: 13, lineHeight: 1.75, color: "rgba(255,255,255,0.38)", margin: 0 },
+  step:         { display: "grid", gridTemplateColumns: "72px 1fr", gap: 32, padding: "32px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", alignItems: "start" },
+  stepNum:      { fontFamily: MONO, fontSize: 36, fontWeight: 700, color: "rgba(232,212,77,0.25)", lineHeight: 1, letterSpacing: "-1px" },
+  stepTitle:    { fontFamily: SERIF, fontSize: 22, fontWeight: 700, color: "#fff", margin: "0 0 10px", lineHeight: 1.2 },
+  stepDesc:     { fontFamily: SANS, fontSize: 15, lineHeight: 1.72, color: "rgba(255,255,255,0.45)", margin: 0, maxWidth: 560 },
 
   // Spec panel
-  specPanel:      { display: "flex", flexWrap: "wrap", minHeight: 600 },
-  specImgWrap:    { flex: "1 1 400px", position: "relative", minHeight: 400 },
-  specImg:        { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 55%" },
-  specContent:    { flex: "1 1 400px", padding: "80px 64px", background: "#0d0d12", display: "flex", flexDirection: "column", gap: 28, justifyContent: "center" },
-  specH2:         { fontFamily: SERIF, fontSize: "clamp(30px,4vw,46px)", fontWeight: 700, lineHeight: 1.1, color: "#fff", margin: "12px 0 0", letterSpacing: "-2px" },
-  specP:          { fontFamily: SANS, fontSize: 14, lineHeight: 1.75, color: "rgba(255,255,255,0.38)", margin: 0 },
-  specTable:      { border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, overflow: "hidden" },
-  specRow:        { display: "flex", padding: "11px 16px", borderBottom: "1px solid rgba(255,255,255,0.05)", gap: 20, alignItems: "center" },
-  specKey:        { fontFamily: MONO, fontSize: 11, color: "rgba(255,255,255,0.28)", width: 88, flexShrink: 0 },
-  specVal:        { fontFamily: MONO, fontSize: 11, color: "rgba(255,255,255,0.72)" },
+  specPanel:    { display: "grid", gridTemplateColumns: "1fr 1fr", minHeight: "80vh" },
+  specImgWrap:  { position: "relative", overflow: "hidden" },
+  specImg:      { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center center" },
+  specBleed:    { position: "absolute", inset: 0, background: "linear-gradient(to left, #09090d 0%, rgba(9,9,13,0.4) 20%, transparent 45%)" },
+  specContent:  { background: "#09090d", padding: "80px 60px", display: "flex", flexDirection: "column", justifyContent: "center", gap: 28 },
+  specH2:       { fontFamily: SERIF, fontSize: "clamp(26px,3vw,40px)", fontWeight: 700, lineHeight: 1.1, letterSpacing: "-1.5px", color: "#fff", margin: "10px 0 0" },
+  specTable:    { width: "100%", borderCollapse: "collapse" },
+  specKey:      { fontFamily: MONO, fontSize: 11, color: "rgba(255,255,255,0.30)", letterSpacing: "0.1em", padding: "14px 24px 14px 0", width: "42%", verticalAlign: "top" },
+  specVal:      { fontFamily: MONO, fontSize: 11, color: "rgba(255,255,255,0.72)", padding: "14px 0", lineHeight: 1.7 },
+  specNote:     { fontFamily: MONO, fontSize: 10, color: "rgba(255,255,255,0.2)", letterSpacing: "0.08em", margin: 0, lineHeight: 1.6 },
 
   // CTA
-  ctaSection:     { position: "relative", overflow: "hidden", padding: "160px 64px", textAlign: "center" },
-  ctaBgImg:       { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 40%" },
-  ctaDim:         { position: "absolute", inset: 0, background: "rgba(9,9,13,0.82)" },
-  ctaInner:       { position: "relative", zIndex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 20 },
-  ctaH2:          { fontFamily: SERIF, fontSize: "clamp(38px,6vw,62px)", fontWeight: 700, lineHeight: 1.07, letterSpacing: "-3px", margin: 0 },
-  ctaP:           { fontFamily: SANS, fontSize: 15, color: "rgba(255,255,255,0.4)", margin: 0 },
+  ctaSection:   { position: "relative", minHeight: "65vh", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  ctaBgImg:     { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 35%" },
+  ctaScrim:     { position: "absolute", inset: 0, background: "rgba(9,9,13,0.70)" },
+  ctaInner:     { position: "relative", zIndex: 1, textAlign: "center", padding: "0 40px", display: "flex", flexDirection: "column", alignItems: "center", gap: 20 },
+  ctaH2:        { fontFamily: SERIF, fontSize: "clamp(40px,6vw,72px)", fontWeight: 700, letterSpacing: "-2.5px", lineHeight: 1.04, color: "#fff", margin: 0 },
+  ctaNote:      { fontFamily: MONO, fontSize: 11, letterSpacing: "0.14em", color: "rgba(255,255,255,0.35)", margin: 0 },
 
   // Footer
-  footer:         { padding: "36px 64px", borderTop: "1px solid rgba(255,255,255,0.05)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 },
-  footerLogo:     { fontFamily: MONO, fontSize: 15, fontWeight: 700, color: "rgba(255,255,255,0.22)" },
-  footerCopy:     { fontFamily: SANS, fontSize: 12, color: "rgba(255,255,255,0.18)" },
+  footer:       { padding: "48px 60px", display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid rgba(255,255,255,0.05)", flexWrap: "wrap", gap: 12 },
+  footerLogo:   { fontFamily: MONO, fontSize: 13, fontWeight: 700, letterSpacing: "0.14em", color: "rgba(255,255,255,0.25)" },
+  footerMid:    { fontFamily: MONO, fontSize: 10, letterSpacing: "0.12em", color: "rgba(255,255,255,0.15)" },
+  footerRight:  { fontFamily: MONO, fontSize: 10, color: "rgba(255,255,255,0.15)" },
 };
