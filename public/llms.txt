@@ -28,5 +28,5 @@ Expenses can be shared with a partner via an encrypted URL. The partner decrypts
 
 ## App
 
-- URL: https://schplitz.vercel.app/
+- URL: https://schplitz.com/
 - Source: https://github.com/thijsschippers/schplitz
