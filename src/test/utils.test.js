@@ -100,14 +100,12 @@ describe('validateExpense', () => {
     expect(() => validateExpense({ ...valid, description: null })).toThrow();
   });
 
-  it(`rejects descriptions longer than ${MAX_DESCRIPTION_LEN} characters`, () => {
-    const long = 'a'.repeat(MAX_DESCRIPTION_LEN + 1);
-    expect(() => validateExpense({ ...valid, description: long })).toThrow();
-  });
-
-  it(`accepts descriptions exactly ${MAX_DESCRIPTION_LEN} characters`, () => {
-    const exact = 'a'.repeat(MAX_DESCRIPTION_LEN);
-    expect(validateExpense({ ...valid, description: exact })).toBe(true);
+  it('accepts descriptions of any length (length capped by UI maxLength, not enforced on import)', () => {
+    // validateExpense is called during import — rejecting old data with longer descriptions
+    // would silently break existing share links. The 30-char limit is enforced by the input
+    // element's maxLength attribute instead.
+    expect(validateExpense({ ...valid, description: 'a'.repeat(MAX_DESCRIPTION_LEN + 1) })).toBe(true);
+    expect(validateExpense({ ...valid, description: 'a'.repeat(200) })).toBe(true);
   });
 
   it('rejects negative, NaN, or non-numeric amounts', () => {
