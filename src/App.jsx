@@ -57,7 +57,7 @@ async function fetchHistoricalRate(date, currency) {
     rateCache[key] = rate;
     return rate;
   } catch (err) {
-    console.warn(`Failed to fetch rate for ${currency} on ${date}, using fallback:`, err);
+    console.warn(`Failed to fetch rate for ${currency} on ${date}, using fallback`);
     const fallback = FALLBACK_RATES[currency] ?? 1;
     rateCache[key] = fallback;
     return fallback;
@@ -141,7 +141,7 @@ async function encrypt(pt, pass) {
     const out  = new Uint8Array(salt.length + iv.length + buf.byteLength);
     out.set(salt, 0); out.set(iv, salt.length); out.set(new Uint8Array(buf), salt.length + iv.length);
     return btoa(String.fromCharCode(...out));
-  } catch (err) { console.error("Encryption failed:", err); throw err; }
+  } catch (err) { console.error("Encryption failed"); throw err; }
 }
 
 async function decrypt(b64, pass) {
@@ -151,7 +151,7 @@ async function decrypt(b64, pass) {
     return new TextDecoder().decode(
       await crypto.subtle.decrypt({ name: "AES-GCM", iv: raw.slice(16, 28) }, key, raw.slice(28))
     );
-  } catch (err) { console.error("Decryption failed:", err); throw err; }
+  } catch (err) { console.error("Decryption failed"); throw err; }
 }
 
 // ─── EXPENSE TRACKER ─────────────────────────────────────────────────────────
@@ -216,7 +216,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
             setDetectedNames(data.names || []);
             setSetupMode("import");
           }
-        } catch (err) { console.error("Failed to parse share URL:", err); }
+        } catch { console.error("Failed to parse share URL"); }
       })();
       return; // Do not load localStorage — let the user import from the link
     }
@@ -233,7 +233,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
           setStatuses(p.statuses || {});
           setExpenses(p.expenses || []); setInitialized(true);
         }
-      } catch (err) { console.error("Failed to load from storage:", err); }
+      } catch { console.error("Failed to load from storage"); }
     }
   }, []);
 
@@ -245,7 +245,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
         statuses, expenses
       }));
       if (securityAnswer) sessionStorage.setItem("schplitzAnswer", securityAnswer);
-    } catch (err) { console.error("Failed to save:", err); }
+    } catch { console.error("Failed to save"); }
   }, [initialized, myName, otherName, securityQuestion, securityAnswer, statuses, expenses]);
 
   useEffect(() => {
@@ -370,7 +370,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
       window.history.replaceState(null, "", window.location.pathname);
       showToast(`Imported ${expenses.length} expense${expenses.length !== 1 ? "s" : ""}!`);
     } catch (err) {
-      console.error("Import failed:", err);
+      console.error("Import failed");
       showToast(err.name === "OperationError" ? "Wrong answer or corrupted data" : `Import failed: ${err.message}`, "error");
     }
     setImporting(false);
@@ -406,7 +406,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
         setExportResult(url); setExportIsUrl(true);
       }
       setStatuses(prev => ({ ...prev, [myName]: exportStatus }));
-    } catch (err) { console.error("Export failed:", err); showToast("Export failed", "error"); }
+    } catch { console.error("Export failed"); showToast("Export failed", "error"); }
     setExporting(false);
   };
 
