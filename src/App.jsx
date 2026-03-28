@@ -37,6 +37,9 @@ async function decompressFromUrl(str) {
 }
 
 const PBKDF2_ITERS = 200_000;
+const MAX_NAME_LEN = 50;
+const MAX_QUESTION_LEN = 200;
+const MAX_DESCRIPTION_LEN = 30;
 
 // Cache: "YYYY-MM-DD:CUR" -> rate (EUR per 1 unit of CUR, i.e. 1/rate_from_api)
 const rateCache = {};
@@ -114,6 +117,7 @@ function validateExpense(e) {
   if (!e || typeof e !== "object") throw new Error("Expense must be an object");
   if (!e.id || typeof e.id !== "string") throw new Error("Invalid or missing expense ID");
   if (!e.description || typeof e.description !== "string" || !e.description.trim()) throw new Error("Invalid or missing description");
+  if (e.description.trim().length > MAX_DESCRIPTION_LEN) throw new Error(`Description exceeds ${MAX_DESCRIPTION_LEN} characters`);
   if (typeof e.amount !== "number" || isNaN(e.amount) || e.amount < 0) throw new Error("Invalid expense amount");
   if (!e.currency || !CURRENCIES[e.currency]) throw new Error(`Unknown currency: ${e.currency}`);
   if (!e.paidBy || typeof e.paidBy !== "string" || !e.paidBy.trim()) throw new Error("Invalid or missing paidBy");
@@ -298,6 +302,12 @@ function ExpenseTracker({ onResetToSetup } = {}) {
     if (!setupMyName.trim() || !setupOtherName.trim() || !setupQuestion.trim() || !answersMatch) {
       showToast("Please fill in all fields correctly", "error"); return;
     }
+    if (setupMyName.trim().length > MAX_NAME_LEN || setupOtherName.trim().length > MAX_NAME_LEN) {
+      showToast(`Names must be ${MAX_NAME_LEN} characters or fewer`, "error"); return;
+    }
+    if (setupQuestion.trim().length > MAX_QUESTION_LEN) {
+      showToast(`Security question must be ${MAX_QUESTION_LEN} characters or fewer`, "error"); return;
+    }
     setMyName(setupMyName.trim()); setOtherName(setupOtherName.trim());
     setSecurityQuestion(setupQuestion.trim()); setSecurityAnswer(setupAnswer);
     sessionStorage.setItem("schplitzAnswer", setupAnswer);
@@ -309,10 +319,15 @@ function ExpenseTracker({ onResetToSetup } = {}) {
     if (!importText.trim() || !importAnswer.trim() || !setupMyName.trim()) {
       showToast("Please fill in all fields", "error"); return;
     }
+    if (setupMyName.trim().length > MAX_NAME_LEN) {
+      showToast(`Name must be ${MAX_NAME_LEN} characters or fewer`, "error"); return;
+    }
     setImporting(true);
     try {
       const o = JSON.parse(importText);
       if (!o.encrypted || o.v !== 3) throw new Error("Invalid import format");
+      if (typeof o.question === "string" && o.question.length > MAX_QUESTION_LEN) throw new Error("Security question in share data is too long");
+      if (Array.isArray(o.names) && o.names.some(n => typeof n === "string" && n.length > MAX_NAME_LEN)) throw new Error("A name in share data exceeds the maximum length");
       const normalizedAnswer = normalizeAnswer(importAnswer);
       const decrypted = await decrypt(o.encrypted, normalizedAnswer);
       const data = JSON.parse(decrypted);
@@ -457,16 +472,16 @@ function ExpenseTracker({ onResetToSetup } = {}) {
           <div style={S.setupForm}>
             <div style={S.setupField}>
               <label style={S.setupLabel}>Your name</label>
-              <input autoFocus value={setupMyName} onChange={e => setSetupMyName(e.target.value)} placeholder={`e.g., ${PLACEHOLDER_ME}`} style={S.setupInput} />
+              <input autoFocus value={setupMyName} onChange={e => setSetupMyName(e.target.value)} placeholder={`e.g., ${PLACEHOLDER_ME}`} maxLength={MAX_NAME_LEN} style={S.setupInput} />
             </div>
             <div style={S.setupField}>
               <label style={S.setupLabel}>Other person's name</label>
-              <input value={setupOtherName} onChange={e => setSetupOtherName(e.target.value)} placeholder={`e.g., ${PLACEHOLDER_OTHER}`} style={S.setupInput} />
+              <input value={setupOtherName} onChange={e => setSetupOtherName(e.target.value)} placeholder={`e.g., ${PLACEHOLDER_OTHER}`} maxLength={MAX_NAME_LEN} style={S.setupInput} />
             </div>
             <div style={S.setupDivider} />
             <div style={S.setupField}>
               <label style={S.setupLabel}>Security question</label>
-              <input value={setupQuestion} onChange={e => setSetupQuestion(e.target.value)} placeholder="e.g., Where did we meet?" style={S.setupInput} />
+              <input value={setupQuestion} onChange={e => setSetupQuestion(e.target.value)} placeholder="e.g., Where did we meet?" maxLength={MAX_QUESTION_LEN} style={S.setupInput} />
             </div>
             <div style={S.setupField}>
               <label style={S.setupLabel}>Answer</label>
@@ -522,7 +537,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
                   ))}
                 </div>
               ) : (
-                <input value={setupMyName} onChange={e => setSetupMyName(e.target.value)} placeholder="Your name" style={S.setupInput} />
+                <input value={setupMyName} onChange={e => setSetupMyName(e.target.value)} placeholder="Your name" maxLength={MAX_NAME_LEN} style={S.setupInput} />
               )}
             </div>
             <button onClick={handleSetupImport}
