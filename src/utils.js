@@ -51,7 +51,6 @@ export function validateExpense(e) {
   if (!e || typeof e !== "object") throw new Error("Expense must be an object");
   if (!e.id || typeof e.id !== "string") throw new Error("Invalid or missing expense ID");
   if (!e.description || typeof e.description !== "string" || !e.description.trim()) throw new Error("Invalid or missing description");
-  if (e.description.trim().length > MAX_DESCRIPTION_LEN) throw new Error(`Description exceeds ${MAX_DESCRIPTION_LEN} characters`);
   if (typeof e.amount !== "number" || isNaN(e.amount) || e.amount < 0) throw new Error("Invalid expense amount");
   if (!e.currency || !CURRENCIES[e.currency]) throw new Error(`Unknown currency: ${e.currency}`);
   if (!e.paidBy || typeof e.paidBy !== "string" || !e.paidBy.trim()) throw new Error("Invalid or missing paidBy");
