@@ -89,9 +89,9 @@ const fmt = (n, c) => {
 
 const uid = () => {
   const ts = Date.now().toString(36);
-  const r1 = Math.random().toString(36).slice(2, 11);
-  const r2 = Math.random().toString(36).slice(2, 6);
-  return `${ts}-${r1}-${r2}`;
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  const rand = Array.from(bytes).map(b => b.toString(36).padStart(2, "0")).join("");
+  return `${ts}-${rand}`;
 };
 
 const today = () => new Date().toISOString().split("T")[0];
@@ -186,6 +186,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
   const [copied, setCopied]                         = useState(false);
 
   const [eurAmounts, setEurAmounts]                  = useState({});  // id -> EUR value
+  const [promptAnswer, setPromptAnswer]               = useState("");
 
   const taRef = useRef(null);
 
@@ -223,7 +224,8 @@ function ExpenseTracker({ onResetToSetup } = {}) {
         const p = JSON.parse(stored);
         if (p.initialized) {
           setMyName(p.myName || ""); setOtherName(p.otherName || "");
-          setSecurityQuestion(p.securityQuestion || ""); setSecurityAnswer(p.securityAnswer || "");
+          setSecurityQuestion(p.securityQuestion || "");
+          setSecurityAnswer(sessionStorage.getItem("schplitzAnswer") || "");
           setStatuses(p.statuses || {});
           setExpenses(p.expenses || []); setInitialized(true);
         }
@@ -236,8 +238,9 @@ function ExpenseTracker({ onResetToSetup } = {}) {
     try {
       localStorage.setItem("schplitzExpenses", JSON.stringify({
         initialized: true, myName, otherName, securityQuestion,
-        securityAnswer, statuses, expenses
+        statuses, expenses
       }));
+      if (securityAnswer) sessionStorage.setItem("schplitzAnswer", securityAnswer);
     } catch (err) { console.error("Failed to save:", err); }
   }, [initialized, myName, otherName, securityQuestion, securityAnswer, statuses, expenses]);
 
@@ -297,6 +300,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
     }
     setMyName(setupMyName.trim()); setOtherName(setupOtherName.trim());
     setSecurityQuestion(setupQuestion.trim()); setSecurityAnswer(setupAnswer);
+    sessionStorage.setItem("schplitzAnswer", setupAnswer);
     setStatuses({}); setExpenses([]);
     setInitialized(true); showToast("New tally started!");
   };
@@ -345,6 +349,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
       if (data.status && senderName) mergedStatuses[senderName] = data.status;
       setMyName(setupMyName.trim()); setOtherName(otherPersonName);
       setSecurityQuestion(o.question || ""); setSecurityAnswer(normalizedAnswer);
+      sessionStorage.setItem("schplitzAnswer", normalizedAnswer);
       setStatuses(mergedStatuses);
       setExpenses(expenses); setInitialized(true);
       window.history.replaceState(null, "", window.location.pathname);
@@ -356,7 +361,17 @@ function ExpenseTracker({ onResetToSetup } = {}) {
     setImporting(false);
   };
 
+  const confirmAnswerPrompt = () => {
+    if (!promptAnswer.trim()) return;
+    const normalized = normalizeAnswer(promptAnswer);
+    sessionStorage.setItem("schplitzAnswer", normalized);
+    setSecurityAnswer(normalized);
+    setPromptAnswer("");
+    setModal("export");
+  };
+
   const handleExport = async () => {
+    if (!securityAnswer) { setPromptAnswer(""); setModal("enter-answer"); return; }
     if (!expenses.length) { showToast("Nothing to export yet", "info"); return; }
     setExporting(true);
     try {
@@ -422,6 +437,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
 
   const confirmStartNew = () => {
     localStorage.removeItem("schplitzExpenses");
+    sessionStorage.removeItem("schplitzAnswer");
     window.history.replaceState(null, "", window.location.pathname);
     if (onResetToSetup) onResetToSetup(); // remounts ExpenseTracker fresh via key change
   };
@@ -567,6 +583,33 @@ function ExpenseTracker({ onResetToSetup } = {}) {
                 Cancel — keep this tally
               </button>
             </>)}
+          </div>
+        </div>
+      )}
+
+      {modal === "enter-answer" && (
+        <div style={S.overlay} onClick={() => setModal(null)}>
+          <div style={S.modalCard} onClick={e => e.stopPropagation()}>
+            <div style={S.modalHdr}>
+              <span style={S.modalTitle}>Enter your answer to share</span>
+              <button onClick={() => setModal(null)} style={S.modalX}><I.X /></button>
+            </div>
+            <p style={S.modalDesc}>{securityQuestion || "Security question"}</p>
+            <input
+              autoFocus
+              type="password"
+              value={promptAnswer}
+              onChange={e => setPromptAnswer(e.target.value.toLowerCase().replace(/\s/g, ""))}
+              placeholder="lowercase, no spaces"
+              style={{ ...S.setupInput, marginBottom: 12 }}
+              onKeyDown={e => { if (e.key === "Enter") confirmAnswerPrompt(); }}
+            />
+            <button
+              onClick={confirmAnswerPrompt}
+              disabled={!promptAnswer.trim()}
+              style={{ ...S.copyBtn, ...(!promptAnswer.trim() ? { opacity: 0.35, cursor: "not-allowed" } : {}) }}>
+              Continue
+            </button>
           </div>
         </div>
       )}
