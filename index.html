@@ -4,7 +4,28 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.frankfurter.app; img-src 'self'; object-src 'none'; base-uri 'self';" />
-    <title>Schplitz - Privacy-First Expense Splitting</title>
+    <title>Schplitz — Privacy-First Expense Splitting</title>
+
+    <!-- Primary meta -->
+    <meta name="description" content="Split expenses with your partner or travel companion — no account, no server, no cloud. AES-256-GCM encryption keeps everything on your device." />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://schplitz.com/" />
+
+    <!-- Open Graph (WhatsApp, iMessage, Slack, etc.) -->
+    <meta property="og:type"        content="website" />
+    <meta property="og:url"         content="https://schplitz.com/" />
+    <meta property="og:title"       content="Schplitz — Privacy-First Expense Splitting" />
+    <meta property="og:description" content="Split expenses with your partner or travel companion — no account, no server, no cloud. AES-256-GCM encryption keeps everything on your device." />
+    <meta property="og:image"       content="https://schplitz.com/images/sunset-couple.jpg" />
+    <meta property="og:image:alt"   content="Two people sharing expenses privately with Schplitz" />
+    <meta property="og:locale"      content="en_US" />
+    <meta property="og:site_name"   content="Schplitz" />
+
+    <!-- Twitter / X card -->
+    <meta name="twitter:card"        content="summary_large_image" />
+    <meta name="twitter:title"       content="Schplitz — Privacy-First Expense Splitting" />
+    <meta name="twitter:description" content="Split expenses with your partner or travel companion — no account, no server, no cloud. AES-256-GCM encryption keeps everything on your device." />
+    <meta name="twitter:image"       content="https://schplitz.com/images/sunset-couple.jpg" />
 <style>
       * {
         margin: 0;
@@ -27,5 +48,35 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+
+    <!-- Fallback content for crawlers that do not execute JavaScript -->
+    <noscript>
+      <main>
+        <h1>Schplitz — Privacy-First Expense Splitting</h1>
+        <p>Split expenses with your partner or travel companion. No account, no server, no cloud. Your data is encrypted with AES-256-GCM and stays on your device.</p>
+
+        <h2>How it works</h2>
+        <ol>
+          <li><strong>Set a shared secret</strong> — Pick a security question only you two would know. The answer is the encryption key; we never see it.</li>
+          <li><strong>Log your expenses</strong> — Add what you spent. Everything stays on your device. Nothing is transmitted without your action.</li>
+          <li><strong>Share an encrypted link</strong> — Your expenses are encrypted before they touch the URL. The other person decrypts with the same answer.</li>
+          <li><strong>See who owes what</strong> — Schplitz calculates the balance across currencies at the historical exchange rate. No account required.</li>
+        </ol>
+
+        <h2>Technical specification</h2>
+        <ul>
+          <li>Cipher: AES-256-GCM</li>
+          <li>Key derivation: PBKDF2-SHA256, 200,000 iterations</li>
+          <li>Salt: 128-bit random per session</li>
+          <li>Storage: localStorage, client-side only</li>
+          <li>Network: none (optional currency API only)</li>
+          <li>Server: none</li>
+          <li>Telemetry: none</li>
+          <li>Account required: no</li>
+        </ul>
+
+        <p>Open Schplitz: <a href="https://schplitz.com/">schplitz.com</a></p>
+      </main>
+    </noscript>
   </body>
 </html>

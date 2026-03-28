@@ -1,0 +1,32 @@
+# Schplitz
+
+> Privacy-first expense splitting for two people — no server, no account, no cloud.
+
+Schplitz is a client-side web app for splitting shared expenses (drinks, travel, dinners) between two people. All data is encrypted in the browser using AES-256-GCM with a key derived via PBKDF2-SHA256 (200,000 iterations, 128-bit random salt). The encryption key comes from a shared secret answer that never leaves the user's device.
+
+Expenses can be shared with a partner via an encrypted URL. The partner decrypts using the same shared answer. Multi-currency support uses historical exchange rates from the Frankfurter API — the only outbound network call the app ever makes.
+
+## Key facts
+
+- Cipher: AES-256-GCM (Web Crypto API / SubtleCrypto)
+- Key derivation: PBKDF2-SHA256, 200,000 iterations
+- Salt: 128-bit, randomly generated per session
+- IV: 96-bit, randomly generated per ciphertext
+- Storage: localStorage (client-side only); encryption key in sessionStorage only
+- Server: none
+- Database: none
+- Account: none required
+- Telemetry: none
+- Network: optional currency conversion via api.frankfurter.app
+
+## How it works
+
+1. Two people agree on a security question and a shared answer.
+2. Each person logs their expenses in the app. Nothing is sent anywhere.
+3. One person generates an encrypted share link. The expense data is compressed and encrypted before it enters the URL.
+4. The other person opens the link, enters the same answer, and the app decrypts and calculates who owes what — including multi-currency balances at historical rates.
+
+## App
+
+- URL: https://schplitz.com/
+- Source: https://github.com/thijsschippers/schplitz
