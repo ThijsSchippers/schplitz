@@ -1,71 +1,13 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-
-const CURRENCIES = {
-  EUR:{ symbol:"€",  name:"Euro" },
-  USD:{ symbol:"$",  name:"US Dollar" },
-  ALL:{ symbol:"L",  name:"Albanian Lek" },
-  AED:{ symbol:"د.إ",name:"UAE Dirham" },
-  NOK:{ symbol:"kr", name:"Norwegian Krone" },
-  SEK:{ symbol:"kr", name:"Swedish Krona" },
-  THB:{ symbol:"฿",  name:"Thai Baht" },
-};
-const FALLBACK_RATES = { EUR:1, USD:1.04, ALL:113.5, AED:3.82, NOK:11.80, SEK:11.45, THB:38.0 };
-const TOAST_DURATION = 2400;
-
-const STATUS_OPTIONS = [
-  { value: "just_started",  label: "Just getting started" },
-  { value: "almost_done",   label: "Almost done adding expenses" },
-  { value: "done",          label: "Done adding expenses" },
-];
-
-const normalizeAnswer = (s) => s.toLowerCase().replace(/\s+/g, "");
-
-async function compressToUrl(str) {
-  const stream = new Blob([str]).stream();
-  const compressed = stream.pipeThrough(new CompressionStream("deflate-raw"));
-  const buf = await new Response(compressed).arrayBuffer();
-  return btoa(String.fromCharCode(...new Uint8Array(buf)))
-    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
-}
-
-async function decompressFromUrl(str) {
-  const bin = atob(str.replace(/-/g, "+").replace(/_/g, "/"));
-  const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
-  const stream = new Blob([bytes]).stream();
-  const decompressed = stream.pipeThrough(new DecompressionStream("deflate-raw"));
-  return new Response(decompressed).text();
-}
-
-const PBKDF2_ITERS = 200_000;
-
-// Cache: "YYYY-MM-DD:CUR" -> rate (EUR per 1 unit of CUR, i.e. 1/rate_from_api)
-const rateCache = {};
-
-async function fetchHistoricalRate(date, currency) {
-  if (currency === "EUR") return 1;
-  const key = `${date}:${currency}`;
-  if (rateCache[key] !== undefined) return rateCache[key];
-  try {
-    const r = await fetch(`https://api.frankfurter.app/${date}?from=EUR&to=${currency}`);
-    if (!r.ok) throw new Error("API error");
-    const d = await r.json();
-    const rate = d.rates?.[currency];
-    if (rate == null) throw new Error("No rate returned");
-    rateCache[key] = rate;
-    return rate;
-  } catch (err) {
-    console.warn(`Failed to fetch rate for ${currency} on ${date}, using fallback:`, err);
-    const fallback = FALLBACK_RATES[currency] ?? 1;
-    rateCache[key] = fallback;
-    return fallback;
-  }
-}
-
-async function toEURHistorical(amt, cur, date) {
-  if (cur === "EUR") return amt;
-  const rate = await fetchHistoricalRate(date, cur);
-  return amt / rate;
-}
+import LandingPage from "./LandingPage.jsx";
+import {
+  CURRENCIES, STATUS_OPTIONS, TOAST_DURATION,
+  MAX_NAME_LEN, MAX_QUESTION_LEN,
+  normalizeAnswer, compressToUrl, decompressFromUrl,
+  encrypt, decrypt, validateExpense,
+  fmt, uid, today, toEURHistorical,
+  PLACEHOLDER_ME, PLACEHOLDER_OTHER,
+} from "./utils.js";
 
 const I = {
   Plus:    () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
@@ -81,74 +23,6 @@ const I = {
   Link:    () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>,
 };
 
-const fmt = (n, c) => {
-  const s = (CURRENCIES[c] || CURRENCIES.EUR).symbol;
-  const v = parseFloat(n);
-  return isNaN(v) ? `${s}0.00` : `${s}${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
-
-const uid = () => {
-  const ts = Date.now().toString(36);
-  const r1 = Math.random().toString(36).slice(2, 11);
-  const r2 = Math.random().toString(36).slice(2, 6);
-  return `${ts}-${r1}-${r2}`;
-};
-
-const today = () => new Date().toISOString().split("T")[0];
-
-const NAME_PAIRS = [
-  ["Alex", "Jordan"],
-  ["Sofia", "Liam"],
-  ["Amara", "Noah"],
-  ["Yuki", "Carlos"],
-  ["Fatima", "Erik"],
-  ["Priya", "Mateo"],
-  ["Leila", "Sam"],
-  ["Chen", "Ingrid"],
-];
-const _namePair = NAME_PAIRS[Math.floor(Math.random() * NAME_PAIRS.length)];
-const PLACEHOLDER_ME    = _namePair[0];
-const PLACEHOLDER_OTHER = _namePair[1];
-
-function validateExpense(e) {
-  if (!e || typeof e !== "object") throw new Error("Expense must be an object");
-  if (!e.id || typeof e.id !== "string") throw new Error("Invalid or missing expense ID");
-  if (!e.description || typeof e.description !== "string" || !e.description.trim()) throw new Error("Invalid or missing description");
-  if (typeof e.amount !== "number" || isNaN(e.amount) || e.amount < 0) throw new Error("Invalid expense amount");
-  if (!e.currency || !CURRENCIES[e.currency]) throw new Error(`Unknown currency: ${e.currency}`);
-  if (!e.paidBy || typeof e.paidBy !== "string" || !e.paidBy.trim()) throw new Error("Invalid or missing paidBy");
-  if (!e.date || typeof e.date !== "string") throw new Error("Invalid or missing date");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(e.date)) throw new Error("Invalid date format");
-  return true;
-}
-
-async function deriveKey(pass, salt) {
-  const b = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations: PBKDF2_ITERS, hash: "SHA-256" }, b, 256);
-  return crypto.subtle.importKey("raw", bits, "AES-GCM", false, ["encrypt", "decrypt"]);
-}
-
-async function encrypt(pt, pass) {
-  try {
-    const salt = crypto.getRandomValues(new Uint8Array(16));
-    const iv   = crypto.getRandomValues(new Uint8Array(12));
-    const key  = await deriveKey(pass, salt);
-    const buf  = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(pt));
-    const out  = new Uint8Array(salt.length + iv.length + buf.byteLength);
-    out.set(salt, 0); out.set(iv, salt.length); out.set(new Uint8Array(buf), salt.length + iv.length);
-    return btoa(String.fromCharCode(...out));
-  } catch (err) { console.error("Encryption failed:", err); throw err; }
-}
-
-async function decrypt(b64, pass) {
-  try {
-    const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-    const key = await deriveKey(pass, raw.slice(0, 16));
-    return new TextDecoder().decode(
-      await crypto.subtle.decrypt({ name: "AES-GCM", iv: raw.slice(16, 28) }, key, raw.slice(28))
-    );
-  } catch (err) { console.error("Decryption failed:", err); throw err; }
-}
 
 // ─── EXPENSE TRACKER ─────────────────────────────────────────────────────────
 
@@ -186,6 +60,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
   const [copied, setCopied]                         = useState(false);
 
   const [eurAmounts, setEurAmounts]                  = useState({});  // id -> EUR value
+  const [promptAnswer, setPromptAnswer]               = useState("");
 
   const taRef = useRef(null);
 
@@ -211,7 +86,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
             setDetectedNames(data.names || []);
             setSetupMode("import");
           }
-        } catch (err) { console.error("Failed to parse share URL:", err); }
+        } catch { console.error("Failed to parse share URL"); }
       })();
       return; // Do not load localStorage — let the user import from the link
     }
@@ -223,11 +98,12 @@ function ExpenseTracker({ onResetToSetup } = {}) {
         const p = JSON.parse(stored);
         if (p.initialized) {
           setMyName(p.myName || ""); setOtherName(p.otherName || "");
-          setSecurityQuestion(p.securityQuestion || ""); setSecurityAnswer(p.securityAnswer || "");
+          setSecurityQuestion(p.securityQuestion || "");
+          setSecurityAnswer(sessionStorage.getItem("schplitzAnswer") || "");
           setStatuses(p.statuses || {});
           setExpenses(p.expenses || []); setInitialized(true);
         }
-      } catch (err) { console.error("Failed to load from storage:", err); }
+      } catch { console.error("Failed to load from storage"); }
     }
   }, []);
 
@@ -236,9 +112,10 @@ function ExpenseTracker({ onResetToSetup } = {}) {
     try {
       localStorage.setItem("schplitzExpenses", JSON.stringify({
         initialized: true, myName, otherName, securityQuestion,
-        securityAnswer, statuses, expenses
+        statuses, expenses
       }));
-    } catch (err) { console.error("Failed to save:", err); }
+      if (securityAnswer) sessionStorage.setItem("schplitzAnswer", securityAnswer);
+    } catch { console.error("Failed to save"); }
   }, [initialized, myName, otherName, securityQuestion, securityAnswer, statuses, expenses]);
 
   useEffect(() => {
@@ -295,8 +172,15 @@ function ExpenseTracker({ onResetToSetup } = {}) {
     if (!setupMyName.trim() || !setupOtherName.trim() || !setupQuestion.trim() || !answersMatch) {
       showToast("Please fill in all fields correctly", "error"); return;
     }
+    if (setupMyName.trim().length > MAX_NAME_LEN || setupOtherName.trim().length > MAX_NAME_LEN) {
+      showToast(`Names must be ${MAX_NAME_LEN} characters or fewer`, "error"); return;
+    }
+    if (setupQuestion.trim().length > MAX_QUESTION_LEN) {
+      showToast(`Security question must be ${MAX_QUESTION_LEN} characters or fewer`, "error"); return;
+    }
     setMyName(setupMyName.trim()); setOtherName(setupOtherName.trim());
     setSecurityQuestion(setupQuestion.trim()); setSecurityAnswer(setupAnswer);
+    sessionStorage.setItem("schplitzAnswer", setupAnswer);
     setStatuses({}); setExpenses([]);
     setInitialized(true); showToast("New tally started!");
   };
@@ -305,10 +189,15 @@ function ExpenseTracker({ onResetToSetup } = {}) {
     if (!importText.trim() || !importAnswer.trim() || !setupMyName.trim()) {
       showToast("Please fill in all fields", "error"); return;
     }
+    if (setupMyName.trim().length > MAX_NAME_LEN) {
+      showToast(`Name must be ${MAX_NAME_LEN} characters or fewer`, "error"); return;
+    }
     setImporting(true);
     try {
       const o = JSON.parse(importText);
       if (!o.encrypted || o.v !== 3) throw new Error("Invalid import format");
+      if (typeof o.question === "string" && o.question.length > MAX_QUESTION_LEN) throw new Error("Security question in share data is too long");
+      if (Array.isArray(o.names) && o.names.some(n => typeof n === "string" && n.length > MAX_NAME_LEN)) throw new Error("A name in share data exceeds the maximum length");
       const normalizedAnswer = normalizeAnswer(importAnswer);
       const decrypted = await decrypt(o.encrypted, normalizedAnswer);
       const data = JSON.parse(decrypted);
@@ -345,18 +234,29 @@ function ExpenseTracker({ onResetToSetup } = {}) {
       if (data.status && senderName) mergedStatuses[senderName] = data.status;
       setMyName(setupMyName.trim()); setOtherName(otherPersonName);
       setSecurityQuestion(o.question || ""); setSecurityAnswer(normalizedAnswer);
+      sessionStorage.setItem("schplitzAnswer", normalizedAnswer);
       setStatuses(mergedStatuses);
       setExpenses(expenses); setInitialized(true);
       window.history.replaceState(null, "", window.location.pathname);
       showToast(`Imported ${expenses.length} expense${expenses.length !== 1 ? "s" : ""}!`);
     } catch (err) {
-      console.error("Import failed:", err);
+      console.error("Import failed");
       showToast(err.name === "OperationError" ? "Wrong answer or corrupted data" : `Import failed: ${err.message}`, "error");
     }
     setImporting(false);
   };
 
+  const confirmAnswerPrompt = () => {
+    if (!promptAnswer.trim()) return;
+    const normalized = normalizeAnswer(promptAnswer);
+    sessionStorage.setItem("schplitzAnswer", normalized);
+    setSecurityAnswer(normalized);
+    setPromptAnswer("");
+    setModal("export");
+  };
+
   const handleExport = async () => {
+    if (!securityAnswer) { setPromptAnswer(""); setModal("enter-answer"); return; }
     if (!expenses.length) { showToast("Nothing to export yet", "info"); return; }
     setExporting(true);
     try {
@@ -376,7 +276,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
         setExportResult(url); setExportIsUrl(true);
       }
       setStatuses(prev => ({ ...prev, [myName]: exportStatus }));
-    } catch (err) { console.error("Export failed:", err); showToast("Export failed", "error"); }
+    } catch { console.error("Export failed"); showToast("Export failed", "error"); }
     setExporting(false);
   };
 
@@ -422,6 +322,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
 
   const confirmStartNew = () => {
     localStorage.removeItem("schplitzExpenses");
+    sessionStorage.removeItem("schplitzAnswer");
     window.history.replaceState(null, "", window.location.pathname);
     if (onResetToSetup) onResetToSetup(); // remounts ExpenseTracker fresh via key change
   };
@@ -441,16 +342,16 @@ function ExpenseTracker({ onResetToSetup } = {}) {
           <div style={S.setupForm}>
             <div style={S.setupField}>
               <label style={S.setupLabel}>Your name</label>
-              <input autoFocus value={setupMyName} onChange={e => setSetupMyName(e.target.value)} placeholder={`e.g., ${PLACEHOLDER_ME}`} style={S.setupInput} />
+              <input autoFocus value={setupMyName} onChange={e => setSetupMyName(e.target.value)} placeholder={`e.g., ${PLACEHOLDER_ME}`} maxLength={MAX_NAME_LEN} style={S.setupInput} />
             </div>
             <div style={S.setupField}>
               <label style={S.setupLabel}>Other person's name</label>
-              <input value={setupOtherName} onChange={e => setSetupOtherName(e.target.value)} placeholder={`e.g., ${PLACEHOLDER_OTHER}`} style={S.setupInput} />
+              <input value={setupOtherName} onChange={e => setSetupOtherName(e.target.value)} placeholder={`e.g., ${PLACEHOLDER_OTHER}`} maxLength={MAX_NAME_LEN} style={S.setupInput} />
             </div>
             <div style={S.setupDivider} />
             <div style={S.setupField}>
               <label style={S.setupLabel}>Security question</label>
-              <input value={setupQuestion} onChange={e => setSetupQuestion(e.target.value)} placeholder="e.g., Where did we meet?" style={S.setupInput} />
+              <input value={setupQuestion} onChange={e => setSetupQuestion(e.target.value)} placeholder="e.g., Where did we meet?" maxLength={MAX_QUESTION_LEN} style={S.setupInput} />
             </div>
             <div style={S.setupField}>
               <label style={S.setupLabel}>Answer</label>
@@ -506,7 +407,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
                   ))}
                 </div>
               ) : (
-                <input value={setupMyName} onChange={e => setSetupMyName(e.target.value)} placeholder="Your name" style={S.setupInput} />
+                <input value={setupMyName} onChange={e => setSetupMyName(e.target.value)} placeholder="Your name" maxLength={MAX_NAME_LEN} style={S.setupInput} />
               )}
             </div>
             <button onClick={handleSetupImport}
@@ -567,6 +468,33 @@ function ExpenseTracker({ onResetToSetup } = {}) {
                 Cancel — keep this tally
               </button>
             </>)}
+          </div>
+        </div>
+      )}
+
+      {modal === "enter-answer" && (
+        <div style={S.overlay} onClick={() => setModal(null)}>
+          <div style={S.modalCard} onClick={e => e.stopPropagation()}>
+            <div style={S.modalHdr}>
+              <span style={S.modalTitle}>Enter your answer to share</span>
+              <button onClick={() => setModal(null)} style={S.modalX}><I.X /></button>
+            </div>
+            <p style={S.modalDesc}>{securityQuestion || "Security question"}</p>
+            <input
+              autoFocus
+              type="password"
+              value={promptAnswer}
+              onChange={e => setPromptAnswer(e.target.value.toLowerCase().replace(/\s/g, ""))}
+              placeholder="lowercase, no spaces"
+              style={{ ...S.setupInput, marginBottom: 12 }}
+              onKeyDown={e => { if (e.key === "Enter") confirmAnswerPrompt(); }}
+            />
+            <button
+              onClick={confirmAnswerPrompt}
+              disabled={!promptAnswer.trim()}
+              style={{ ...S.copyBtn, ...(!promptAnswer.trim() ? { opacity: 0.35, cursor: "not-allowed" } : {}) }}>
+              Continue
+            </button>
           </div>
         </div>
       )}
@@ -725,130 +653,6 @@ function ExpenseTracker({ onResetToSetup } = {}) {
   );
 }
 
-// ─── LANDING PAGE ─────────────────────────────────────────────────────────────
-
-function LandingPage({ onLaunch }) {
-  return (
-    <div style={L.page}>
-      <nav style={L.nav}>
-        <span style={L.logo}>schplitz</span>
-        <button onClick={onLaunch} style={L.navCta}>Open App</button>
-      </nav>
-
-      {/* HERO */}
-      <section style={L.hero}>
-        <div style={L.glowA} />
-        <div style={L.glowB} />
-        <div style={L.heroInner}>
-          <span style={L.eyebrow}>expense splitting, auf Nummer sicher</span>
-          <h1 style={L.heroH1}>
-            Don't let your<br />purchase history<br /><span style={L.accent}>haunt your future.</span>
-          </h1>
-          <p style={L.heroP}>
-            Schplitz keeps expenses on your device. Share them securily with each other. No cloud, no tracking, no schnickschnak.
-          </p>
-          <div style={L.heroActs}>
-            <button onClick={onLaunch} style={L.heroCta}>
-              Start splitting
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-              </svg>
-            </button>
-            <span style={L.heroNote}>No account. No databases. No cloud.</span>
-          </div>
-        </div>
-      </section>
-
-      {/* PROBLEM */}
-      <section style={L.section}>
-        <div style={L.sectionHead}>
-          <span style={L.eyebrow}>the uncomfortable truth</span>
-          <h2 style={L.sectionH2}>Most apps<br /><span style={L.accent}>know too much.</span></h2>
-        </div>
-        <div style={L.problemGrid}>
-          <div style={L.probCard}>
-            <img src="/images/city-night.jpg" alt="" style={L.probImg} loading="lazy" />
-            <div style={L.probText}>
-              <h3 style={L.probTitle}>Synced to the cloud</h3>
-              <p style={L.probBody}>Every expense you log is uploaded to a server you don't own, run by a company you've never met.</p>
-            </div>
-          </div>
-          <div style={L.probCard}>
-            <img src="/images/bar-friends.jpg" alt="" style={L.probImg} loading="lazy" />
-            <div style={L.probText}>
-              <h3 style={L.probTitle}>Mined for insights</h3>
-              <p style={L.probBody}>Your spending habits become data points. Someone, somewhere, is learning what you buy.</p>
-            </div>
-          </div>
-          <div style={L.probCard}>
-            <img src="/images/bar-couple.jpg" alt="" style={L.probImg} loading="lazy" />
-            <div style={L.probText}>
-              <h3 style={L.probTitle}>Shared with third parties</h3>
-              <p style={L.probBody}>Ad networks, analytics, payment processors — your data gets passed around like a hot potato.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* couple-nature above quote, no caption */}
-      <div style={L.quoteImgWrap}>
-        <img src="/images/couple-nature.jpg" alt="" style={L.quoteImg} loading="lazy" />
-      </div>
-
-      {/* QUOTE */}
-      <div style={L.quoteWrap}>
-        <div style={L.quoteInner}>
-          <div style={L.quoteLine} />
-          <p style={L.quoteText}>"The best place to store sensitive data is somewhere no one else can reach it."</p>
-          <span style={L.quoteAttr}>The only server Schplitz uses is your device.</span>
-        </div>
-      </div>
-
-      {/* HOW IT WORKS */}
-      <section style={L.howSection}>
-        <div style={L.sectionHead}>
-          <span style={L.eyebrow}>how it works</span>
-          <h2 style={L.sectionH2}>Simple.<br /><span style={L.accent}>By design.</span></h2>
-        </div>
-        <div style={L.stepsGrid}>
-          {[
-            { n: "01", title: "Set a shared secret",   body: "You and the other person agree on a security question and answer. That answer encrypts everything." },
-            { n: "02", title: "Log your expenses",     body: "Add what you spent. Schplitz keeps it all on your device — nothing leaves without your say." },
-            { n: "03", title: "Share a link",          body: "Generate an encrypted share link. The other person imports it, adds theirs, and sends one back." },
-            { n: "04", title: "Settle up",             body: "Schplitz calculates who owes what across all currencies. No app account, no payment integration — just the number." },
-          ].map((s, i) => (
-            <div key={i} style={L.stepCard}>
-              <span style={L.stepNum}>{s.n}</span>
-              <h3 style={L.stepTitle}>{s.title}</h3>
-              <p style={L.stepBody}>{s.body}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section style={L.ctaSection}>
-        <div style={L.ctaGlow} />
-        <div style={L.ctaInner}>
-          <h2 style={L.ctaH2}>Your money.<br /><span style={L.accent}>Your business.</span></h2>
-          <p style={L.ctaP}>No downloads. No installs. Just open and go.</p>
-          <button onClick={onLaunch} style={L.heroCta}>
-            Open Schplitz
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-            </svg>
-          </button>
-        </div>
-      </section>
-
-      <footer style={L.footer}>
-        <span style={L.footerLogo}>schplitz</span>
-        <span style={L.footerCopy}>Proudly built in Niederwalluf.</span>
-      </footer>
-    </div>
-  );
-}
-
 // ─── APP SHELL ────────────────────────────────────────────────────────────────
 
 export default function Schplitz() {
@@ -957,50 +761,3 @@ const S = {
   resetBtn:        { background: "none", border: "none", color: "#4a4a5a", fontSize: 12, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2 },
 };
 
-const L = {
-  page:           { background: "#0a0a0e", color: "#fff", fontFamily: "Georgia,serif", minHeight: "100vh", overflowX: "hidden" },
-  nav:            { position: "sticky", top: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 36px", background: "rgba(10,10,14,0.88)", backdropFilter: "blur(14px)", borderBottom: "1px solid rgba(255,255,255,0.07)" },
-  logo:           { fontSize: 22, fontWeight: 700, color: "#fff", letterSpacing: "-0.5px" },
-  navCta:         { padding: "8px 22px", background: "transparent", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 8, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" },
-  hero:           { position: "relative", minHeight: "100vh", display: "flex", alignItems: "center", overflow: "hidden", padding: "0 60px" },
-  glowA:          { position: "absolute", top: "-25%", left: "-8%", width: "55%", height: "75%", background: "radial-gradient(ellipse, rgba(232,212,77,0.09) 0%, transparent 70%)", pointerEvents: "none", zIndex: 1 },
-  glowB:          { position: "absolute", bottom: "-15%", right: "-6%", width: "45%", height: "55%", background: "radial-gradient(ellipse, rgba(59,130,246,0.055) 0%, transparent 70%)", pointerEvents: "none", zIndex: 1 },
-  heroInner:      { position: "relative", zIndex: 2, maxWidth: 700 },
-  eyebrow:        { display: "inline-block", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "2.8px", color: "#e8d44d", marginBottom: 28, fontFamily: "system-ui,sans-serif" },
-  heroH1:         { fontSize: "clamp(38px,4.5vw,66px)", fontWeight: 700, lineHeight: 1.06, color: "#fff", margin: "0 0 30px", letterSpacing: "-2px" },
-  accent:         { color: "#e8d44d" },
-  heroP:          { fontSize: 16, lineHeight: 1.7, color: "#7a7a8a", maxWidth: 460, margin: "0 0 38px", fontFamily: "system-ui,sans-serif", fontWeight: 400 },
-  heroActs:       { display: "flex", flexDirection: "column", gap: 16, alignItems: "flex-start" },
-  heroCta:        { display: "inline-flex", alignItems: "center", gap: 10, background: "#e8d44d", border: "none", borderRadius: 10, color: "#0a0a0e", padding: "15px 30px", fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "system-ui,sans-serif", letterSpacing: "-0.2px", boxShadow: "0 2px 16px rgba(232,212,77,0.25)" },
-  heroNote:       { fontSize: 12, color: "#4a4a5a", fontFamily: "system-ui,sans-serif", letterSpacing: "0.4px" },
-  section:        { padding: "120px 60px", maxWidth: 1100, margin: "0 auto" },
-  howSection:     { padding: "120px 60px", maxWidth: 1100, margin: "0 auto" },
-  sectionHead:    { marginBottom: 60 },
-  sectionH2:      { fontSize: "clamp(34px,5.5vw,52px)", fontWeight: 700, lineHeight: 1.12, color: "#fff", margin: "12px 0 0", letterSpacing: "-1.8px" },
-  problemGrid:    { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))", gap: 18, marginBottom: 60 },
-  probCard:       { background: "rgba(255,255,255,0.028)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, overflow: "hidden" },
-  probTitle:      { fontSize: 16, fontWeight: 700, color: "#fff", margin: "0 0 10px", fontFamily: "system-ui,sans-serif" },
-  probBody:       { fontSize: 13, lineHeight: 1.65, color: "#5f5f6f", margin: 0, fontFamily: "system-ui,sans-serif" },
-  stepsGrid:      { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 18, marginBottom: 60 },
-  stepCard:       { padding: "28px 24px", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16 },
-  stepNum:        { display: "block", fontSize: 11, fontWeight: 700, color: "#e8d44d", letterSpacing: "1px", fontFamily: "system-ui,sans-serif", marginBottom: 14 },
-  stepTitle:      { fontSize: 16, fontWeight: 700, color: "#fff", margin: "0 0 10px", fontFamily: "system-ui,sans-serif" },
-  stepBody:       { fontSize: 13, lineHeight: 1.65, color: "#5f5f6f", margin: 0, fontFamily: "system-ui,sans-serif" },
-  probImg:        { width: "100%", height: 200, objectFit: "cover", marginBottom: 0, display: "block" },
-  probText:       { padding: "24px 26px 30px" },
-  quoteImgWrap:   { maxWidth: 1100, margin: "0 auto", padding: "80px 60px 0" },
-  quoteImg:       { width: "100%", height: 480, objectFit: "cover", objectPosition: "center 30%", borderRadius: 16, display: "block", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" },
-  quoteWrap:      { padding: "80px 60px", textAlign: "center", borderBottom: "1px solid rgba(255,255,255,0.05)" },
-  quoteInner:     { maxWidth: 600, margin: "0 auto" },
-  quoteLine:      { width: 40, height: 2, background: "#e8d44d", margin: "0 auto 28px", borderRadius: 1 },
-  quoteText:      { fontSize: "clamp(20px,3.2vw,27px)", fontWeight: 400, color: "rgba(255,255,255,0.7)", lineHeight: 1.55, margin: "0 0 14px", letterSpacing: "-0.3px" },
-  quoteAttr:      { fontSize: 12, color: "#4a4a5a", fontFamily: "system-ui,sans-serif", letterSpacing: "0.4px" },
-  ctaSection:     { position: "relative", padding: "160px 60px 140px", textAlign: "center", overflow: "hidden" },
-  ctaGlow:        { position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "70%", height: 280, background: "radial-gradient(ellipse, rgba(232,212,77,0.07) 0%, transparent 70%)", pointerEvents: "none" },
-  ctaInner:       { position: "relative", zIndex: 1 },
-  ctaH2:          { fontSize: "clamp(38px,6vw,58px)", fontWeight: 700, lineHeight: 1.08, letterSpacing: "-2px", margin: "0 0 18px" },
-  ctaP:           { fontSize: 16, color: "#5f5f6f", margin: "0 0 36px", fontFamily: "system-ui,sans-serif" },
-  footer:         { padding: "44px 60px", textAlign: "center", borderTop: "1px solid rgba(255,255,255,0.05)" },
-  footerLogo:     { display: "block", fontSize: 18, fontWeight: 700, color: "rgba(255,255,255,0.3)", marginBottom: 8 },
-  footerCopy:     { fontSize: 12, color: "#3a3a4a", fontFamily: "system-ui,sans-serif" },
-};
