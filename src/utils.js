@@ -15,6 +15,27 @@ export const PBKDF2_ITERS       = 200_000;
 export const MAX_NAME_LEN       = 50;
 export const MAX_QUESTION_LEN   = 200;
 export const MAX_DESCRIPTION_LEN = 30;
+export const MAX_SETTLEMENT_LEN  = 500;
+
+export const SETTLEMENT_PLACEHOLDERS_DEBTOR = [
+  "I'll hand you cash when we meet on Saturday",
+  "Sending you a Tikkie right now — check your phone",
+  "Here's a gift card code: [paste code here]",
+  "I'll transfer to your account — tell me your IBAN in person",
+  "I'll buy dinner next time we go out",
+  "Dropping an envelope in your mailbox tomorrow",
+  "Wiring it now — reference: [paste confirmation here]",
+];
+
+export const SETTLEMENT_PLACEHOLDERS_CREDITOR = [
+  "Send me a Tikkie — you have my number",
+  "Cash next time we meet works fine",
+  "My IBAN: [paste your IBAN here]",
+  "Just buy me coffee until we're even",
+  "Surprise me — keep it off the grid",
+  "I'll send you a payment request",
+  "Any way works — your call",
+];
 
 export const STATUS_OPTIONS = [
   { value: "just_started", label: "Just getting started" },

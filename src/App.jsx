@@ -2,11 +2,12 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import LandingPage from "./LandingPage.jsx";
 import {
   CURRENCIES, STATUS_OPTIONS, TOAST_DURATION,
-  MAX_NAME_LEN, MAX_QUESTION_LEN,
+  MAX_NAME_LEN, MAX_QUESTION_LEN, MAX_SETTLEMENT_LEN,
   normalizeAnswer, compressToUrl, decompressFromUrl,
   encrypt, decrypt, validateExpense,
   fmt, uid, today, toEURHistorical,
   PLACEHOLDER_ME, PLACEHOLDER_OTHER,
+  SETTLEMENT_PLACEHOLDERS_DEBTOR, SETTLEMENT_PLACEHOLDERS_CREDITOR,
 } from "./utils.js";
 
 const I = {
@@ -33,6 +34,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
   const [securityQuestion, setSecurityQuestion]     = useState("");
   const [securityAnswer, setSecurityAnswer]         = useState("");
   const [statuses, setStatuses]                     = useState({});
+  const [settlements, setSettlements]               = useState({});
   const [expenses, setExpenses]                     = useState([]);
   const [form, setForm]                             = useState({ description: "", amount: "", currency: "EUR", date: today() });
   const [showForm, setShowForm]                     = useState(false);
@@ -61,6 +63,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
 
   const [eurAmounts, setEurAmounts]                  = useState({});  // id -> EUR value
   const [promptAnswer, setPromptAnswer]               = useState("");
+  const [settlementDraft, setSettlementDraft]         = useState("");
 
   const taRef = useRef(null);
 
@@ -101,6 +104,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
           setSecurityQuestion(p.securityQuestion || "");
           setSecurityAnswer(sessionStorage.getItem("schplitzAnswer") || "");
           setStatuses(p.statuses || {});
+          setSettlements(p.settlements || {});
           setExpenses(p.expenses || []); setInitialized(true);
         }
       } catch { console.error("Failed to load from storage"); }
@@ -112,11 +116,11 @@ function ExpenseTracker({ onResetToSetup } = {}) {
     try {
       localStorage.setItem("schplitzExpenses", JSON.stringify({
         initialized: true, myName, otherName, securityQuestion,
-        statuses, expenses
+        statuses, settlements, expenses
       }));
       if (securityAnswer) sessionStorage.setItem("schplitzAnswer", securityAnswer);
     } catch { console.error("Failed to save"); }
-  }, [initialized, myName, otherName, securityQuestion, securityAnswer, statuses, expenses]);
+  }, [initialized, myName, otherName, securityQuestion, securityAnswer, statuses, settlements, expenses]);
 
   useEffect(() => {
     if (!importText.trim()) { setDetectedQuestion(""); setDetectedNames([]); return; }
@@ -144,6 +148,13 @@ function ExpenseTracker({ onResetToSetup } = {}) {
     setToast({ msg, type });
     setTimeout(() => setToast(null), TOAST_DURATION);
   }, []);
+
+  const settlePlaceholderDebtor = useMemo(
+    () => SETTLEMENT_PLACEHOLDERS_DEBTOR[Math.floor(Math.random() * SETTLEMENT_PLACEHOLDERS_DEBTOR.length)], []
+  );
+  const settlePlaceholderCreditor = useMemo(
+    () => SETTLEMENT_PLACEHOLDERS_CREDITOR[Math.floor(Math.random() * SETTLEMENT_PLACEHOLDERS_CREDITOR.length)], []
+  );
 
   const summary = useMemo(() => {
     if (!otherName) return null;
@@ -217,25 +228,29 @@ function ExpenseTracker({ onResetToSetup } = {}) {
         return full;
       });
       const otherPersonName = (o.names || []).find(n => n !== setupMyName.trim()) || "";
-      // Merge statuses: start from what's stored locally (preserves all known statuses),
-      // then overlay the sender's status by name so it's always name-keyed.
+      // Merge statuses and settlements: start from what's stored locally (preserves all known values),
+      // then overlay the sender's data by name so it's always name-keyed.
       let mergedStatuses = {};
+      let mergedSettlements = {};
       try {
         const stored = localStorage.getItem("schplitzExpenses");
         if (stored) {
           const p = JSON.parse(stored);
           if (p.initialized && p.securityQuestion === (o.question || "")) {
             mergedStatuses = { ...p.statuses };
+            mergedSettlements = { ...p.settlements };
           }
         }
       } catch {}
-      // The sender's status is stored under their name
+      // The sender's status and settlement are stored under their name
       const senderName = (o.names || []).find(n => n !== setupMyName.trim()) || otherPersonName;
       if (data.status && senderName) mergedStatuses[senderName] = data.status;
+      if (data.settlement && senderName) mergedSettlements[senderName] = data.settlement;
       setMyName(setupMyName.trim()); setOtherName(otherPersonName);
       setSecurityQuestion(o.question || ""); setSecurityAnswer(normalizedAnswer);
       sessionStorage.setItem("schplitzAnswer", normalizedAnswer);
       setStatuses(mergedStatuses);
+      setSettlements(mergedSettlements);
       setExpenses(expenses); setInitialized(true);
       window.history.replaceState(null, "", window.location.pathname);
       showToast(`Imported ${expenses.length} expense${expenses.length !== 1 ? "s" : ""}!`);
@@ -260,12 +275,14 @@ function ExpenseTracker({ onResetToSetup } = {}) {
     if (!expenses.length) { showToast("Nothing to export yet", "info"); return; }
     setExporting(true);
     try {
+      const encryptedData = {
+        expenses: expenses.map(e => ({ i: e.id, d: e.description, a: e.amount, c: e.currency, p: e.paidBy, t: e.date })),
+        status: exportStatus,
+      };
+      if (settlements[myName]) encryptedData.settlement = settlements[myName];
       const payload = {
         v: 3, question: securityQuestion, names: [myName, otherName],
-        encrypted: await encrypt(JSON.stringify({
-          expenses: expenses.map(e => ({ i: e.id, d: e.description, a: e.amount, c: e.currency, p: e.paidBy, t: e.date })),
-          status: exportStatus
-        }), securityAnswer)
+        encrypted: await encrypt(JSON.stringify(encryptedData), securityAnswer)
       };
       const compressed = await compressToUrl(JSON.stringify(payload));
       const url = `${window.location.origin}${window.location.pathname}#share=${compressed}`;
@@ -586,6 +603,70 @@ function ExpenseTracker({ onResetToSetup } = {}) {
         </div>
       )}
 
+      {summary && statuses[myName] === "done" && statuses[otherName] === "done" && (
+        <div style={S.sumWrap}>
+          <div style={S.settleCard}>
+            <div style={S.settleHdr}>
+              <I.Settled />
+              <span style={S.settleTitle}>Settlement</span>
+            </div>
+
+            {summary.myBalance === 0 ? (
+              <p style={S.settleEven}>You're all even — no settlement needed.</p>
+            ) : (<>
+              {/* Counterparty's proposal (if they sent one) */}
+              {settlements[otherName] && (
+                <div style={S.settleProposal}>
+                  <span style={S.settleProposalLabel}>{otherName}'s proposal</span>
+                  <p style={S.settleProposalText}>{settlements[otherName]}</p>
+                </div>
+              )}
+
+              {/* User's own settlement message */}
+              {settlements[myName] && !settlementDraft ? (
+                <div style={S.settleMine}>
+                  <span style={S.settleProposalLabel}>Your proposal</span>
+                  <p style={S.settleProposalText}>{settlements[myName]}</p>
+                  <button onClick={() => setSettlementDraft(settlements[myName])} style={S.settleEditBtn}>Edit</button>
+                </div>
+              ) : (
+                <div style={S.settleForm}>
+                  <p style={S.settlePrompt}>
+                    {summary.myBalance < 0
+                      ? <>You owe <strong style={S.owesA}>{fmt(Math.abs(summary.myBalance), "EUR")}</strong> — tell {otherName} how you'll pay</>
+                      : <>{otherName} owes you <strong style={S.owesA}>{fmt(Math.abs(summary.myBalance), "EUR")}</strong> — tell them how you'd like to be paid</>}
+                  </p>
+                  <p style={S.settleHint}>
+                    {summary.myBalance < 0
+                      ? "Describe your payment method: cash handoff, bank transfer, payment app, gift card, etc."
+                      : "Share your preferred payment method: bank details, payment app handle, or suggest meeting in person."}
+                  </p>
+                  <textarea
+                    value={settlementDraft}
+                    onChange={e => setSettlementDraft(e.target.value.slice(0, MAX_SETTLEMENT_LEN))}
+                    placeholder={summary.myBalance < 0 ? settlePlaceholderDebtor : settlePlaceholderCreditor}
+                    style={S.settleTextarea}
+                    rows={3}
+                  />
+                  <span style={S.settleCharCount}>{settlementDraft.length}/{MAX_SETTLEMENT_LEN}</span>
+                  <button
+                    onClick={() => {
+                      if (!settlementDraft.trim()) return;
+                      setSettlements(prev => ({ ...prev, [myName]: settlementDraft.trim() }));
+                      setSettlementDraft("");
+                      setExportResult(""); setExportIsUrl(false); setExportStatus("done"); setModal("export");
+                    }}
+                    disabled={!settlementDraft.trim()}
+                    style={{ ...S.copyBtn, ...(!settlementDraft.trim() ? disabledStyle : {}) }}>
+                    <I.Up /> Save & Share
+                  </button>
+                </div>
+              )}
+            </>)}
+          </div>
+        </div>
+      )}
+
       {!showForm ? (
         <button onClick={() => setShowForm(true)} style={S.addBtn}><I.Plus /> Add Expense</button>
       ) : (
@@ -759,5 +840,20 @@ const S = {
   emptyT:          { fontSize: 14, color: "#5a5a6a", textAlign: "center", lineHeight: 1.5, maxWidth: 320 },
   footer:          { textAlign: "center", marginTop: 40 },
   resetBtn:        { background: "none", border: "none", color: "#4a4a5a", fontSize: 12, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2 },
+
+  settleCard:        { background: "#1a1a24", border: "1px solid #2a3a2a", borderRadius: 14, padding: 18 },
+  settleHdr:         { display: "flex", alignItems: "center", gap: 8, marginBottom: 14 },
+  settleTitle:       { fontSize: 14, fontWeight: 700, color: "#4caf50", textTransform: "uppercase", letterSpacing: "0.8px" },
+  settleEven:        { fontSize: 14, color: "#8a8a9a", margin: 0, textAlign: "center", padding: "8px 0" },
+  settleProposal:    { background: "#12121a", border: "1px solid #2e2e3e", borderRadius: 10, padding: 14, marginBottom: 14 },
+  settleProposalLabel:{ fontSize: 11, color: "#6a6a7a", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.6px", display: "block", marginBottom: 6 },
+  settleProposalText:{ fontSize: 14, color: "#ddd", margin: 0, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" },
+  settleMine:        { background: "#12121a", border: "1px solid #2e2e3e", borderRadius: 10, padding: 14 },
+  settleEditBtn:     { background: "none", border: "none", color: "#e8d44d", fontSize: 12, fontWeight: 600, cursor: "pointer", marginTop: 8, padding: 0, textDecoration: "underline", textUnderlineOffset: 2 },
+  settleForm:        { display: "flex", flexDirection: "column", gap: 8 },
+  settlePrompt:      { fontSize: 13, color: "#aaa", margin: 0, lineHeight: 1.5 },
+  settleHint:        { fontSize: 12, color: "#5a5a6a", margin: 0, lineHeight: 1.4, fontStyle: "italic" },
+  settleTextarea:    { padding: "12px 14px", background: "#12121a", border: "1px solid #2e2e3e", borderRadius: 8, color: "#fff", fontSize: 14, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5, minHeight: 72 },
+  settleCharCount:   { fontSize: 11, color: "#4a4a5a", alignSelf: "flex-end", marginTop: -4 },
 };
 
