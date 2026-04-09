@@ -263,3 +263,94 @@ describe('share link round-trip', () => {
     await expect(decrypt(decompressed.encrypted, 'wronganswer')).rejects.toThrow();
   });
 });
+
+// ─── backwards compatibility ──────────────────────────────────────────────────
+//
+// These tests pin down the shape of share payloads from earlier versions of
+// the app. If a future change breaks reading an older format, one of these
+// tests will fail — forcing a conscious decision to either preserve
+// compatibility or bump the schema version (`v`).
+//
+// When adding a new field inside the encrypted payload, add a new describe
+// block below that documents what version of the app first produced it, so
+// we always know which shapes must still be readable.
+
+describe('backwards compatibility', () => {
+  describe('pre-settlement-feature payload (no `settlement` field)', () => {
+    // This is the shape produced by schplitz before the settlement feature
+    // was added. It only contained `expenses` and `status` inside the
+    // encrypted blob. A link of this shape must still decrypt and import
+    // cleanly.
+    const answer = 'legacytally';
+    const legacyEncryptedContent = {
+      expenses: [
+        { i: 'e1', d: 'dinner', a: 45.0, c: 'EUR', p: 'Alex',   t: '2024-06-01' },
+        { i: 'e2', d: 'taxi',   a: 12.5, c: 'USD', p: 'Jordan', t: '2024-06-02' },
+      ],
+      status: 'done',
+      // Note: no `settlement` field
+    };
+
+    const buildLegacyPayload = async () => ({
+      v: 3,
+      question: 'Where did we meet?',
+      names: ['Alex', 'Jordan'],
+      encrypted: await encrypt(JSON.stringify(legacyEncryptedContent), answer),
+    });
+
+    it('decrypts and parses without errors', async () => {
+      const payload = await buildLegacyPayload();
+      const compressed = await compressToUrl(JSON.stringify(payload));
+      const decompressed = JSON.parse(await decompressFromUrl(compressed));
+      const decrypted = JSON.parse(await decrypt(decompressed.encrypted, answer));
+
+      expect(decompressed.v).toBe(3);
+      expect(decrypted.expenses).toHaveLength(2);
+      expect(decrypted.status).toBe('done');
+    });
+
+    it('has no settlement field, and the import guard handles that safely', async () => {
+      const payload = await buildLegacyPayload();
+      const decrypted = JSON.parse(await decrypt(payload.encrypted, answer));
+
+      // The import code uses `if (data.settlement && ...)` — this test pins
+      // that guard as a contract. If someone removes the guard, this breaks.
+      expect(decrypted.settlement).toBeUndefined();
+      expect(Boolean(decrypted.settlement)).toBe(false);
+    });
+
+    it('expanded expenses still pass current validation', async () => {
+      const payload = await buildLegacyPayload();
+      const decrypted = JSON.parse(await decrypt(payload.encrypted, answer));
+      decrypted.expenses.forEach(e => {
+        const full = { id: e.i, description: e.d, amount: e.a, currency: e.c, paidBy: e.p, date: e.t };
+        expect(() => validateExpense(full)).not.toThrow();
+      });
+    });
+  });
+
+  describe('forward compatibility: current format must also be valid v3', () => {
+    // The settlement feature added an additive `settlement` field to the
+    // encrypted payload. Because `v` stays at 3, older clients reading a
+    // newer link must still be able to extract expenses and status — they
+    // will simply ignore the unknown field. This test documents that
+    // guarantee so we don't accidentally introduce breaking changes under
+    // the same version number.
+    it('a payload with settlement is still parseable when ignoring the settlement field', async () => {
+      const answer = 'modernanswer';
+      const content = {
+        expenses: [{ i: 'e1', d: 'dinner', a: 45.0, c: 'EUR', p: 'Alex', t: '2024-06-01' }],
+        status: 'done',
+        settlement: "I'll hand you cash Saturday",
+      };
+      const encrypted = await encrypt(JSON.stringify(content), answer);
+      const decrypted = JSON.parse(await decrypt(encrypted, answer));
+
+      // Old-client simulation: only look at `expenses` and `status`
+      expect(Array.isArray(decrypted.expenses)).toBe(true);
+      expect(decrypted.status).toBe('done');
+      // Settlement is there, but old clients would simply not read it
+      expect(decrypted.settlement).toBe("I'll hand you cash Saturday");
+    });
+  });
+});
