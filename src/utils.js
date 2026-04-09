@@ -125,6 +125,38 @@ export async function decrypt(b64, pass) {
   } catch (err) { console.error("Decryption failed"); throw err; }
 }
 
+// ─── compressed encrypt/decrypt (v4 payload format) ─────────────────────────
+// Deflates plaintext BEFORE encrypting. Since encrypted bytes are high-entropy
+// and don't compress, doing the compression on the plaintext side shrinks
+// share-link payloads by ~85% for realistic expense counts. Used for `v: 4`
+// exports; the older string-based encrypt/decrypt above is kept for reading
+// legacy `v: 3` share links.
+export async function encryptCompressed(pt, pass) {
+  try {
+    const deflateStream = new Blob([pt]).stream().pipeThrough(new CompressionStream("deflate-raw"));
+    const deflated = new Uint8Array(await new Response(deflateStream).arrayBuffer());
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv   = crypto.getRandomValues(new Uint8Array(12));
+    const key  = await deriveKey(pass, salt);
+    const buf  = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, deflated);
+    const out  = new Uint8Array(salt.length + iv.length + buf.byteLength);
+    out.set(salt, 0); out.set(iv, salt.length); out.set(new Uint8Array(buf), salt.length + iv.length);
+    return btoa(String.fromCharCode(...out));
+  } catch (err) { console.error("Encryption failed"); throw err; }
+}
+
+export async function decryptCompressed(b64, pass) {
+  try {
+    const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const key = await deriveKey(pass, raw.slice(0, 16));
+    const plaintextBytes = new Uint8Array(
+      await crypto.subtle.decrypt({ name: "AES-GCM", iv: raw.slice(16, 28) }, key, raw.slice(28))
+    );
+    const inflateStream = new Blob([plaintextBytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+    return await new Response(inflateStream).text();
+  } catch (err) { console.error("Decryption failed"); throw err; }
+}
+
 // Cache: "YYYY-MM-DD:CUR" -> rate
 const rateCache = {};
 

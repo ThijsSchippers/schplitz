@@ -4,7 +4,7 @@ import {
   CURRENCIES, STATUS_OPTIONS, TOAST_DURATION,
   MAX_NAME_LEN, MAX_QUESTION_LEN, MAX_SETTLEMENT_LEN,
   normalizeAnswer, compressToUrl, decompressFromUrl,
-  encrypt, decrypt, validateExpense,
+  encrypt, decrypt, encryptCompressed, decryptCompressed, validateExpense,
   fmt, uid, today, toEURHistorical,
   PLACEHOLDER_ME, PLACEHOLDER_OTHER,
   SETTLEMENT_PLACEHOLDERS_DEBTOR, SETTLEMENT_PLACEHOLDERS_CREDITOR,
@@ -83,7 +83,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
         try {
           const json = await decompressFromUrl(compressed);
           const data = JSON.parse(json);
-          if (data.v === 3) {
+          if (data.v === 3 || data.v === 4) {
             setImportText(json);
             setDetectedQuestion(data.question || "");
             setDetectedNames(data.names || []);
@@ -126,7 +126,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
     if (!importText.trim()) { setDetectedQuestion(""); setDetectedNames([]); return; }
     try {
       const o = JSON.parse(importText);
-      if (o.v === 3) { setDetectedQuestion(o.question || ""); setDetectedNames(o.names || []); }
+      if (o.v === 3 || o.v === 4) { setDetectedQuestion(o.question || ""); setDetectedNames(o.names || []); }
       else { setDetectedQuestion(""); setDetectedNames([]); }
     } catch { setDetectedQuestion(""); setDetectedNames([]); }
   }, [importText]);
@@ -206,11 +206,14 @@ function ExpenseTracker({ onResetToSetup } = {}) {
     setImporting(true);
     try {
       const o = JSON.parse(importText);
-      if (!o.encrypted || o.v !== 3) throw new Error("Invalid import format");
+      if (!o.encrypted || (o.v !== 3 && o.v !== 4)) throw new Error("Invalid import format");
       if (typeof o.question === "string" && o.question.length > MAX_QUESTION_LEN) throw new Error("Security question in share data is too long");
       if (Array.isArray(o.names) && o.names.some(n => typeof n === "string" && n.length > MAX_NAME_LEN)) throw new Error("A name in share data exceeds the maximum length");
       const normalizedAnswer = normalizeAnswer(importAnswer);
-      const decrypted = await decrypt(o.encrypted, normalizedAnswer);
+      // v3: plain-JSON-then-encrypt (legacy). v4: deflate-then-encrypt (current).
+      const decrypted = o.v === 4
+        ? await decryptCompressed(o.encrypted, normalizedAnswer)
+        : await decrypt(o.encrypted, normalizedAnswer);
       const data = JSON.parse(decrypted);
       if (!Array.isArray(data.expenses)) throw new Error("Invalid data format");
       if (data.settlement != null && (typeof data.settlement !== "string" || data.settlement.length > MAX_SETTLEMENT_LEN)) {
@@ -284,8 +287,8 @@ function ExpenseTracker({ onResetToSetup } = {}) {
       };
       if (settlements[myName]) encryptedData.settlement = settlements[myName];
       const payload = {
-        v: 3, question: securityQuestion, names: [myName, otherName],
-        encrypted: await encrypt(JSON.stringify(encryptedData), securityAnswer)
+        v: 4, question: securityQuestion, names: [myName, otherName],
+        encrypted: await encryptCompressed(JSON.stringify(encryptedData), securityAnswer)
       };
       const compressed = await compressToUrl(JSON.stringify(payload));
       const url = `${window.location.origin}${window.location.pathname}#share=${compressed}`;
