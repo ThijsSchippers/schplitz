@@ -192,7 +192,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
     setMyName(setupMyName.trim()); setOtherName(setupOtherName.trim());
     setSecurityQuestion(setupQuestion.trim()); setSecurityAnswer(setupAnswer);
     sessionStorage.setItem("schplitzAnswer", setupAnswer);
-    setStatuses({}); setExpenses([]);
+    setStatuses({}); setSettlements({}); setExpenses([]);
     setInitialized(true); showToast("New tally started!");
   };
 
@@ -213,6 +213,9 @@ function ExpenseTracker({ onResetToSetup } = {}) {
       const decrypted = await decrypt(o.encrypted, normalizedAnswer);
       const data = JSON.parse(decrypted);
       if (!Array.isArray(data.expenses)) throw new Error("Invalid data format");
+      if (data.settlement != null && (typeof data.settlement !== "string" || data.settlement.length > MAX_SETTLEMENT_LEN)) {
+        throw new Error("Invalid settlement message in share data");
+      }
       // Expand short keys (i/d/a/c/p/t) back to full keys for validation and storage
       const expenses = data.expenses.map((e, idx) => {
         const full = {
