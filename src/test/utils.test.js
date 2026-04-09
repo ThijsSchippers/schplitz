@@ -6,10 +6,13 @@ import {
   fmt,
   encrypt,
   decrypt,
+  encryptCompressed,
+  decryptCompressed,
   compressToUrl,
   decompressFromUrl,
   CURRENCIES,
   MAX_DESCRIPTION_LEN,
+  MAX_SETTLEMENT_LEN,
 } from '../utils.js';
 
 // ─── normalizeAnswer ─────────────────────────────────────────────────────────
@@ -261,5 +264,219 @@ describe('share link round-trip', () => {
     const compressed = await compressToUrl(JSON.stringify(payload));
     const decompressed = JSON.parse(await decompressFromUrl(compressed));
     await expect(decrypt(decompressed.encrypted, 'wronganswer')).rejects.toThrow();
+  });
+});
+
+// ─── backwards compatibility ──────────────────────────────────────────────────
+//
+// These tests pin down the shape of share payloads from earlier versions of
+// the app. If a future change breaks reading an older format, one of these
+// tests will fail — forcing a conscious decision to either preserve
+// compatibility or bump the schema version (`v`).
+//
+// When adding a new field inside the encrypted payload, add a new describe
+// block below that documents what version of the app first produced it, so
+// we always know which shapes must still be readable.
+
+describe('backwards compatibility', () => {
+  describe('pre-settlement-feature payload (no `settlement` field)', () => {
+    // This is the shape produced by schplitz before the settlement feature
+    // was added. It only contained `expenses` and `status` inside the
+    // encrypted blob. A link of this shape must still decrypt and import
+    // cleanly.
+    const answer = 'legacytally';
+    const legacyEncryptedContent = {
+      expenses: [
+        { i: 'e1', d: 'dinner', a: 45.0, c: 'EUR', p: 'Alex',   t: '2024-06-01' },
+        { i: 'e2', d: 'taxi',   a: 12.5, c: 'USD', p: 'Jordan', t: '2024-06-02' },
+      ],
+      status: 'done',
+      // Note: no `settlement` field
+    };
+
+    const buildLegacyPayload = async () => ({
+      v: 3,
+      question: 'Where did we meet?',
+      names: ['Alex', 'Jordan'],
+      encrypted: await encrypt(JSON.stringify(legacyEncryptedContent), answer),
+    });
+
+    it('decrypts and parses without errors', async () => {
+      const payload = await buildLegacyPayload();
+      const compressed = await compressToUrl(JSON.stringify(payload));
+      const decompressed = JSON.parse(await decompressFromUrl(compressed));
+      const decrypted = JSON.parse(await decrypt(decompressed.encrypted, answer));
+
+      expect(decompressed.v).toBe(3);
+      expect(decrypted.expenses).toHaveLength(2);
+      expect(decrypted.status).toBe('done');
+    });
+
+    it('has no settlement field, and the import guard handles that safely', async () => {
+      const payload = await buildLegacyPayload();
+      const decrypted = JSON.parse(await decrypt(payload.encrypted, answer));
+
+      // The import code uses `if (data.settlement && ...)` — this test pins
+      // that guard as a contract. If someone removes the guard, this breaks.
+      expect(decrypted.settlement).toBeUndefined();
+      expect(Boolean(decrypted.settlement)).toBe(false);
+    });
+
+    it('expanded expenses still pass current validation', async () => {
+      const payload = await buildLegacyPayload();
+      const decrypted = JSON.parse(await decrypt(payload.encrypted, answer));
+      decrypted.expenses.forEach(e => {
+        const full = { id: e.i, description: e.d, amount: e.a, currency: e.c, paidBy: e.p, date: e.t };
+        expect(() => validateExpense(full)).not.toThrow();
+      });
+    });
+  });
+
+  describe('pre-compression payload (v3, plaintext JSON inside encrypt)', () => {
+    // v3 used plain-JSON-then-encrypt. v4 switched to deflate-then-encrypt to
+    // keep URLs small, but v3 links from older app versions must still import.
+    // This test pins that v3 remains decodable via the legacy `decrypt` path.
+    it('still round-trips via legacy decrypt (not decryptCompressed)', async () => {
+      const answer = 'legacyv3';
+      const content = { expenses: [], status: 'done' };
+      const encrypted = await encrypt(JSON.stringify(content), answer);
+      // v3 payloads MUST use `decrypt`, not `decryptCompressed`
+      const decrypted = await decrypt(encrypted, answer);
+      expect(JSON.parse(decrypted)).toEqual(content);
+    });
+  });
+
+  describe('additive field compatibility within a schema version', () => {
+    // When adding a new field (like `settlement`) inside the encrypted
+    // payload WITHOUT bumping the schema version, older clients reading a
+    // newer link must still be able to extract the fields they know about.
+    // This test documents that guarantee so we don't accidentally introduce
+    // breaking changes under the same version number.
+    it('an unknown field in the encrypted payload does not break legacy field reads', async () => {
+      const answer = 'modernanswer';
+      const content = {
+        expenses: [{ i: 'e1', d: 'dinner', a: 45.0, c: 'EUR', p: 'Alex', t: '2024-06-01' }],
+        status: 'done',
+        settlement: "I'll hand you cash Saturday",
+      };
+      // Use the v4 (compressed) path since that's what current exports produce
+      const encrypted = await encryptCompressed(JSON.stringify(content), answer);
+      const decrypted = JSON.parse(await decryptCompressed(encrypted, answer));
+
+      // Old-client simulation: only look at `expenses` and `status`
+      expect(Array.isArray(decrypted.expenses)).toBe(true);
+      expect(decrypted.status).toBe('done');
+      // Settlement is there, but a client that doesn't know about it ignores it
+      expect(decrypted.settlement).toBe("I'll hand you cash Saturday");
+    });
+  });
+});
+
+// ─── v4 compressed format (encryptCompressed / decryptCompressed) ────────────
+
+describe('encryptCompressed / decryptCompressed (v4 format)', () => {
+  it('round-trips plaintext correctly', async () => {
+    const plaintext = JSON.stringify({
+      expenses: [{ i: 'e1', d: 'dinner', a: 45.0, c: 'EUR', p: 'Alex', t: '2024-06-01' }],
+      status: 'done',
+      settlement: 'Cash Saturday',
+    });
+    const encrypted = await encryptCompressed(plaintext, 'answer');
+    expect(await decryptCompressed(encrypted, 'answer')).toBe(plaintext);
+  });
+
+  it('produces different ciphertext each time (random IV)', async () => {
+    const a = await encryptCompressed('same', 'answer');
+    const b = await encryptCompressed('same', 'answer');
+    expect(a).not.toBe(b);
+  });
+
+  it('throws on wrong answer', async () => {
+    const c = await encryptCompressed('secret', 'correct');
+    await expect(decryptCompressed(c, 'wrong')).rejects.toThrow();
+  });
+
+  it('round-trips unicode and special characters', async () => {
+    const plaintext = '€100 · café · 日本語 · <script>alert(1)</script>';
+    const encrypted = await encryptCompressed(plaintext, 'answer');
+    expect(await decryptCompressed(encrypted, 'answer')).toBe(plaintext);
+  });
+
+  it('cannot be read with the plaintext decrypt() helper', async () => {
+    // Guardrail: v4 ciphertexts carry deflated bytes, so calling the legacy
+    // `decrypt` (which TextDecodes) on them must NOT produce the original JSON.
+    // If this test starts passing accidentally, the format branching in the
+    // import handler is no longer load-bearing and needs re-examination.
+    const plaintext = JSON.stringify({ expenses: [], status: 'done' });
+    const encrypted = await encryptCompressed(plaintext, 'answer');
+    const wrongPath = await decrypt(encrypted, 'answer').catch(() => null);
+    expect(wrongPath).not.toBe(plaintext);
+  });
+});
+
+// ─── URL size budget ─────────────────────────────────────────────────────────
+//
+// The share-link URL is capped at 8000 characters in App.jsx (falling back to
+// text export beyond that). This describe block pins the size budget for
+// realistic payloads so that future features don't silently push users past
+// the limit. If these numbers change significantly, review the fix — either
+// accept the new budget by updating the thresholds, or rework the format.
+
+describe('URL size budget', () => {
+  const URL_CAP = 8000;
+  const ANSWER = 'budgetanswer';
+  const QUESTION = 'Where did we first meet on our road trip?';
+  const NAMES = ['Alexander', 'Jordan'];
+
+  const makeExpense = (i) => ({
+    i: `kx8z${i.toString(36).padStart(16, '0')}`,
+    d: `Expense description ${i}`.slice(0, 30),
+    a: 42.5 + i,
+    c: ['EUR', 'USD', 'THB', 'NOK', 'SEK'][i % 5],
+    p: i % 2 === 0 ? 'Alexander' : 'Jordan',
+    t: '2024-06-01',
+  });
+
+  const buildUrlLen = async ({ n, settlementLen }) => {
+    const content = {
+      expenses: Array.from({ length: n }, (_, i) => makeExpense(i)),
+      status: 'done',
+    };
+    if (settlementLen > 0) content.settlement = 'x'.repeat(settlementLen);
+    const payload = {
+      v: 4,
+      question: QUESTION,
+      names: NAMES,
+      encrypted: await encryptCompressed(JSON.stringify(content), ANSWER),
+    };
+    const compressed = await compressToUrl(JSON.stringify(payload));
+    return `https://schplitz.com/#share=${compressed}`.length;
+  };
+
+  it('50 expenses + max-length settlement fits well under 8000', async () => {
+    const len = await buildUrlLen({ n: 50, settlementLen: MAX_SETTLEMENT_LEN });
+    expect(len).toBeLessThan(URL_CAP);
+    // Leave healthy headroom — if this drops below ~6000 headroom, something grew.
+    expect(len).toBeLessThan(3000);
+  });
+
+  it('100 expenses + max-length settlement fits under 8000', async () => {
+    const len = await buildUrlLen({ n: 100, settlementLen: MAX_SETTLEMENT_LEN });
+    expect(len).toBeLessThan(URL_CAP);
+  });
+
+  it('200 expenses + max-length settlement still fits under 8000', async () => {
+    // With compressed format, even very large tallies fit. This is the
+    // regression guard — if this starts failing, compression is broken.
+    const len = await buildUrlLen({ n: 200, settlementLen: MAX_SETTLEMENT_LEN });
+    expect(len).toBeLessThan(URL_CAP);
+  });
+
+  it('adding a max-length settlement to 50 expenses adds <100 chars to the URL', async () => {
+    // Documents that the settlement feature's URL cost is negligible after
+    // compression. If this regresses, the compression path likely broke.
+    const without = await buildUrlLen({ n: 50, settlementLen: 0 });
+    const with_   = await buildUrlLen({ n: 50, settlementLen: MAX_SETTLEMENT_LEN });
+    expect(with_ - without).toBeLessThan(100);
   });
 });

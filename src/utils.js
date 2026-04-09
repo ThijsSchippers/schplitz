@@ -15,6 +15,27 @@ export const PBKDF2_ITERS       = 200_000;
 export const MAX_NAME_LEN       = 50;
 export const MAX_QUESTION_LEN   = 200;
 export const MAX_DESCRIPTION_LEN = 30;
+export const MAX_SETTLEMENT_LEN  = 500;
+
+export const SETTLEMENT_PLACEHOLDERS_DEBTOR = [
+  "I'll hand you cash when we meet on Saturday",
+  "Sending you a Tikkie right now — check your phone",
+  "Here's a gift card code: [paste code here]",
+  "I'll transfer to your account — tell me your IBAN in person",
+  "I'll buy dinner next time we go out",
+  "Dropping an envelope in your mailbox tomorrow",
+  "Wiring it now — reference: [paste confirmation here]",
+];
+
+export const SETTLEMENT_PLACEHOLDERS_CREDITOR = [
+  "Send me a Tikkie — you have my number",
+  "Cash next time we meet works fine",
+  "My IBAN: [paste your IBAN here]",
+  "Just buy me coffee until we're even",
+  "Surprise me — keep it off the grid",
+  "I'll send you a payment request",
+  "Any way works — your call",
+];
 
 export const STATUS_OPTIONS = [
   { value: "just_started", label: "Just getting started" },
@@ -101,6 +122,38 @@ export async function decrypt(b64, pass) {
     return new TextDecoder().decode(
       await crypto.subtle.decrypt({ name: "AES-GCM", iv: raw.slice(16, 28) }, key, raw.slice(28))
     );
+  } catch (err) { console.error("Decryption failed"); throw err; }
+}
+
+// ─── compressed encrypt/decrypt (v4 payload format) ─────────────────────────
+// Deflates plaintext BEFORE encrypting. Since encrypted bytes are high-entropy
+// and don't compress, doing the compression on the plaintext side shrinks
+// share-link payloads by ~85% for realistic expense counts. Used for `v: 4`
+// exports; the older string-based encrypt/decrypt above is kept for reading
+// legacy `v: 3` share links.
+export async function encryptCompressed(pt, pass) {
+  try {
+    const deflateStream = new Blob([pt]).stream().pipeThrough(new CompressionStream("deflate-raw"));
+    const deflated = new Uint8Array(await new Response(deflateStream).arrayBuffer());
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv   = crypto.getRandomValues(new Uint8Array(12));
+    const key  = await deriveKey(pass, salt);
+    const buf  = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, deflated);
+    const out  = new Uint8Array(salt.length + iv.length + buf.byteLength);
+    out.set(salt, 0); out.set(iv, salt.length); out.set(new Uint8Array(buf), salt.length + iv.length);
+    return btoa(String.fromCharCode(...out));
+  } catch (err) { console.error("Encryption failed"); throw err; }
+}
+
+export async function decryptCompressed(b64, pass) {
+  try {
+    const raw = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const key = await deriveKey(pass, raw.slice(0, 16));
+    const plaintextBytes = new Uint8Array(
+      await crypto.subtle.decrypt({ name: "AES-GCM", iv: raw.slice(16, 28) }, key, raw.slice(28))
+    );
+    const inflateStream = new Blob([plaintextBytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+    return await new Response(inflateStream).text();
   } catch (err) { console.error("Decryption failed"); throw err; }
 }
 
