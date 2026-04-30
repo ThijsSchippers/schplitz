@@ -121,7 +121,6 @@ export default function LandingPage({ onLaunch }) {
 
       {/* ── HERO ── */}
       <section className="lp-hero" style={L.hero}>
-        {/* Left: text */}
         <div className="lp-hero-left" style={L.heroLeft}>
           <span style={L.eyebrow}>SCHPLITZ // CLIENT-SIDE ONLY</span>
           <h1 style={L.heroH1}>
@@ -129,7 +128,6 @@ export default function LandingPage({ onLaunch }) {
             <span style={L.accent}>haunt</span> your future.
           </h1>
 
-          {/* Terminal spec box */}
           <div style={L.termBox}>
             {SPEC_ROWS.map(([k, v]) => (
               <div key={k} style={L.termRow}>
@@ -152,7 +150,6 @@ export default function LandingPage({ onLaunch }) {
           </div>
         </div>
 
-        {/* Right: photo */}
         <div className="lp-hero-right" style={L.heroRight}>
           <img src="/images/city-night.jpg" alt="" style={L.heroImg} loading="eager" />
           <div className="lp-hero-bleed" style={L.heroBleed} />

@@ -149,12 +149,8 @@ function ExpenseTracker({ onResetToSetup } = {}) {
     setTimeout(() => setToast(null), TOAST_DURATION);
   }, []);
 
-  const settlePlaceholderDebtor = useMemo(
-    () => SETTLEMENT_PLACEHOLDERS_DEBTOR[Math.floor(Math.random() * SETTLEMENT_PLACEHOLDERS_DEBTOR.length)], []
-  );
-  const settlePlaceholderCreditor = useMemo(
-    () => SETTLEMENT_PLACEHOLDERS_CREDITOR[Math.floor(Math.random() * SETTLEMENT_PLACEHOLDERS_CREDITOR.length)], []
-  );
+  const [settlePlaceholderDebtor]   = useState(() => SETTLEMENT_PLACEHOLDERS_DEBTOR[Math.floor(Math.random() * SETTLEMENT_PLACEHOLDERS_DEBTOR.length)]);
+  const [settlePlaceholderCreditor] = useState(() => SETTLEMENT_PLACEHOLDERS_CREDITOR[Math.floor(Math.random() * SETTLEMENT_PLACEHOLDERS_CREDITOR.length)]);
 
   const summary = useMemo(() => {
     if (!otherName) return null;
@@ -219,7 +215,6 @@ function ExpenseTracker({ onResetToSetup } = {}) {
       if (data.settlement != null && (typeof data.settlement !== "string" || data.settlement.length > MAX_SETTLEMENT_LEN)) {
         throw new Error("Invalid settlement message in share data");
       }
-      // Expand short keys (i/d/a/c/p/t) back to full keys for validation and storage
       const expenses = data.expenses.map((e, idx) => {
         const full = {
           id:          e.id ?? e.i,
@@ -234,8 +229,6 @@ function ExpenseTracker({ onResetToSetup } = {}) {
         return full;
       });
       const otherPersonName = (o.names || []).find(n => n !== setupMyName.trim()) || "";
-      // Merge statuses and settlements: start from what's stored locally (preserves all known values),
-      // then overlay the sender's data by name so it's always name-keyed.
       let mergedStatuses = {};
       let mergedSettlements = {};
       try {
@@ -248,10 +241,8 @@ function ExpenseTracker({ onResetToSetup } = {}) {
           }
         }
       } catch {}
-      // The sender's status and settlement are stored under their name
-      const senderName = (o.names || []).find(n => n !== setupMyName.trim()) || otherPersonName;
-      if (data.status && senderName) mergedStatuses[senderName] = data.status;
-      if (data.settlement && senderName) mergedSettlements[senderName] = data.settlement;
+      if (data.status && otherPersonName) mergedStatuses[otherPersonName] = data.status;
+      if (data.settlement && otherPersonName) mergedSettlements[otherPersonName] = data.settlement;
       setMyName(setupMyName.trim()); setOtherName(otherPersonName);
       setSecurityQuestion(o.question || ""); setSecurityAnswer(normalizedAnswer);
       sessionStorage.setItem("schplitzAnswer", normalizedAnswer);
@@ -320,7 +311,6 @@ function ExpenseTracker({ onResetToSetup } = {}) {
         // fall through to clipboard
       }
     }
-    // Fallback: copy to clipboard
     try { await navigator.clipboard.writeText(exportResult); }
     catch { if (taRef.current) { taRef.current.select(); document.execCommand("copy"); } }
     setCopied(true); setTimeout(() => setCopied(false), 1800);
