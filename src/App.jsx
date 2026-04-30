@@ -13,14 +13,12 @@ import {
 const I = {
   Plus:    () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
   Trash:   () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
-  Down:    () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
   Up:      () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>,
   Copy:    () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>,
   Chk:     () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
   X:       () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
   User:    () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="8" r="4"/></svg>,
   Settled: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
-  Users:   () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
   Link:    () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>,
 };
 
@@ -61,7 +59,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
   const [exportIsUrl, setExportIsUrl]               = useState(false);
   const [copied, setCopied]                         = useState(false);
 
-  const [eurAmounts, setEurAmounts]                  = useState({});  // id -> EUR value
+  const [eurAmounts, setEurAmounts]                  = useState({});
   const [promptAnswer, setPromptAnswer]               = useState("");
   const [settlementDraft, setSettlementDraft]         = useState("");
 
@@ -94,7 +92,6 @@ function ExpenseTracker({ onResetToSetup } = {}) {
       return; // Do not load localStorage — let the user import from the link
     }
 
-    // No share link: restore session from localStorage as normal
     const stored = localStorage.getItem("schplitzExpenses");
     if (stored) {
       try {
@@ -149,12 +146,8 @@ function ExpenseTracker({ onResetToSetup } = {}) {
     setTimeout(() => setToast(null), TOAST_DURATION);
   }, []);
 
-  const settlePlaceholderDebtor = useMemo(
-    () => SETTLEMENT_PLACEHOLDERS_DEBTOR[Math.floor(Math.random() * SETTLEMENT_PLACEHOLDERS_DEBTOR.length)], []
-  );
-  const settlePlaceholderCreditor = useMemo(
-    () => SETTLEMENT_PLACEHOLDERS_CREDITOR[Math.floor(Math.random() * SETTLEMENT_PLACEHOLDERS_CREDITOR.length)], []
-  );
+  const [settlePlaceholderDebtor]   = useState(() => SETTLEMENT_PLACEHOLDERS_DEBTOR[Math.floor(Math.random() * SETTLEMENT_PLACEHOLDERS_DEBTOR.length)]);
+  const [settlePlaceholderCreditor] = useState(() => SETTLEMENT_PLACEHOLDERS_CREDITOR[Math.floor(Math.random() * SETTLEMENT_PLACEHOLDERS_CREDITOR.length)]);
 
   const summary = useMemo(() => {
     if (!otherName) return null;
@@ -219,7 +212,6 @@ function ExpenseTracker({ onResetToSetup } = {}) {
       if (data.settlement != null && (typeof data.settlement !== "string" || data.settlement.length > MAX_SETTLEMENT_LEN)) {
         throw new Error("Invalid settlement message in share data");
       }
-      // Expand short keys (i/d/a/c/p/t) back to full keys for validation and storage
       const expenses = data.expenses.map((e, idx) => {
         const full = {
           id:          e.id ?? e.i,
@@ -234,8 +226,6 @@ function ExpenseTracker({ onResetToSetup } = {}) {
         return full;
       });
       const otherPersonName = (o.names || []).find(n => n !== setupMyName.trim()) || "";
-      // Merge statuses and settlements: start from what's stored locally (preserves all known values),
-      // then overlay the sender's data by name so it's always name-keyed.
       let mergedStatuses = {};
       let mergedSettlements = {};
       try {
@@ -248,10 +238,8 @@ function ExpenseTracker({ onResetToSetup } = {}) {
           }
         }
       } catch {}
-      // The sender's status and settlement are stored under their name
-      const senderName = (o.names || []).find(n => n !== setupMyName.trim()) || otherPersonName;
-      if (data.status && senderName) mergedStatuses[senderName] = data.status;
-      if (data.settlement && senderName) mergedSettlements[senderName] = data.settlement;
+      if (data.status && otherPersonName) mergedStatuses[otherPersonName] = data.status;
+      if (data.settlement && otherPersonName) mergedSettlements[otherPersonName] = data.settlement;
       setMyName(setupMyName.trim()); setOtherName(otherPersonName);
       setSecurityQuestion(o.question || ""); setSecurityAnswer(normalizedAnswer);
       sessionStorage.setItem("schplitzAnswer", normalizedAnswer);
@@ -320,7 +308,6 @@ function ExpenseTracker({ onResetToSetup } = {}) {
         // fall through to clipboard
       }
     }
-    // Fallback: copy to clipboard
     try { await navigator.clipboard.writeText(exportResult); }
     catch { if (taRef.current) { taRef.current.select(); document.execCommand("copy"); } }
     setCopied(true); setTimeout(() => setCopied(false), 1800);
@@ -552,8 +539,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
             ) : (
               <>
                 <p style={{ ...S.modalDesc, marginBottom: 8 }}>Too many expenses for a URL — copy this encrypted text instead.</p>
-                <textarea ref={taRef} readOnly value={exportResult}
-                  style={{ ...S.expTA, ...(exportIsUrl ? { minHeight: 72, color: "#7ab8f5", fontSize: 11 } : {}) }} />
+                <textarea ref={taRef} readOnly value={exportResult} style={S.expTA} />
                 <button onClick={handleCopy} style={S.copyBtn}>
                   {copied ? <><I.Chk /> Copied!</> : <><I.Copy /> Copy Text</>}
                 </button>
@@ -575,7 +561,6 @@ function ExpenseTracker({ onResetToSetup } = {}) {
           <div style={S.sumCard}>
             <div style={S.sumTop}>
               <span style={S.sumLabel}>Balance (EUR)</span>
-
             </div>
             <div style={S.statusRow}>
               <div style={S.statusItem}>
@@ -764,12 +749,7 @@ const S = {
   setupHeader:     { textAlign: "center", marginBottom: 32 },
   setupTitle:      { fontSize: 24, fontWeight: 700, color: "#fff", margin: "0 0 8px", fontFamily: "Georgia,serif" },
   setupSub:        { fontSize: 14, color: "#7a7a8a", margin: 0 },
-  choiceGrid:      { display: "grid", gap: 12 },
-  choiceBtn:       { background: "#12121a", border: "1px solid #2e2e3e", borderRadius: 12, padding: "20px 18px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 8, color: "#fff" },
-  choiceBtnTitle:  { fontSize: 16, fontWeight: 600, color: "#fff" },
-  choiceBtnDesc:   { fontSize: 13, color: "#7a7a8a", lineHeight: 1.4 },
   setupForm:       { display: "flex", flexDirection: "column", gap: 16 },
-  backLink:        { background: "none", border: "none", color: "#e8d44d", fontSize: 13, fontWeight: 600, cursor: "pointer", alignSelf: "flex-start", padding: 0 },
   setupField:      { display: "flex", flexDirection: "column", gap: 6 },
   setupLabel:      { fontSize: 12, color: "#8a8a9a", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.6px" },
   setupInput:      { padding: "12px 14px", background: "#12121a", border: "1px solid #2e2e3e", borderRadius: 8, color: "#fff", fontSize: 15, outline: "none" },
@@ -804,10 +784,7 @@ const S = {
   sumWrap:         { padding: "16px 20px" },
   sumCard:         { background: "#1a1a24", border: "1px solid #2a2a3a", borderRadius: 14, padding: 18 },
   sumTop:          { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
-  sumTopR:         { display: "flex", alignItems: "center", gap: 10 },
   sumLabel:        { fontSize: 12, color: "#6a6a7a", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.8px" },
-  settledBadge:    { display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#4caf50", background: "#4caf5018", padding: "3px 8px", borderRadius: 20, fontWeight: 600 },
-  rBadge:          { fontSize: 10, fontWeight: 600 },
   statusRow:       { display: "flex", gap: 12, marginBottom: 14, flexWrap: "wrap" },
   statusItem:      { flex: 1, minWidth: "45%", display: "flex", flexDirection: "column", gap: 4 },
   statusPerson:    { fontSize: 11, color: "#6a6a7a", fontWeight: 600 },
