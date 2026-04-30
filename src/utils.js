@@ -47,9 +47,7 @@ const NAME_PAIRS = [
   ["Alex", "Jordan"], ["Sofia", "Liam"], ["Amara", "Noah"],  ["Yuki", "Carlos"],
   ["Fatima", "Erik"], ["Priya", "Mateo"], ["Leila", "Sam"], ["Chen", "Ingrid"],
 ];
-const _pair = NAME_PAIRS[Math.floor(Math.random() * NAME_PAIRS.length)];
-export const PLACEHOLDER_ME    = _pair[0];
-export const PLACEHOLDER_OTHER = _pair[1];
+export const [PLACEHOLDER_ME, PLACEHOLDER_OTHER] = NAME_PAIRS[Math.floor(Math.random() * NAME_PAIRS.length)];
 
 export const normalizeAnswer = (s) => s.toLowerCase().replace(/\s+/g, "");
 
