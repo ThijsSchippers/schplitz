@@ -61,7 +61,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
   const [exportIsUrl, setExportIsUrl]               = useState(false);
   const [copied, setCopied]                         = useState(false);
 
-  const [eurAmounts, setEurAmounts]                  = useState({});  // id -> EUR value
+  const [eurAmounts, setEurAmounts]                  = useState({});
   const [promptAnswer, setPromptAnswer]               = useState("");
   const [settlementDraft, setSettlementDraft]         = useState("");
 
@@ -94,7 +94,6 @@ function ExpenseTracker({ onResetToSetup } = {}) {
       return; // Do not load localStorage — let the user import from the link
     }
 
-    // No share link: restore session from localStorage as normal
     const stored = localStorage.getItem("schplitzExpenses");
     if (stored) {
       try {
@@ -542,8 +541,7 @@ function ExpenseTracker({ onResetToSetup } = {}) {
             ) : (
               <>
                 <p style={{ ...S.modalDesc, marginBottom: 8 }}>Too many expenses for a URL — copy this encrypted text instead.</p>
-                <textarea ref={taRef} readOnly value={exportResult}
-                  style={{ ...S.expTA, ...(exportIsUrl ? { minHeight: 72, color: "#7ab8f5", fontSize: 11 } : {}) }} />
+                <textarea ref={taRef} readOnly value={exportResult} style={S.expTA} />
                 <button onClick={handleCopy} style={S.copyBtn}>
                   {copied ? <><I.Chk /> Copied!</> : <><I.Copy /> Copy Text</>}
                 </button>
@@ -565,7 +563,6 @@ function ExpenseTracker({ onResetToSetup } = {}) {
           <div style={S.sumCard}>
             <div style={S.sumTop}>
               <span style={S.sumLabel}>Balance (EUR)</span>
-
             </div>
             <div style={S.statusRow}>
               <div style={S.statusItem}>
@@ -754,12 +751,7 @@ const S = {
   setupHeader:     { textAlign: "center", marginBottom: 32 },
   setupTitle:      { fontSize: 24, fontWeight: 700, color: "#fff", margin: "0 0 8px", fontFamily: "Georgia,serif" },
   setupSub:        { fontSize: 14, color: "#7a7a8a", margin: 0 },
-  choiceGrid:      { display: "grid", gap: 12 },
-  choiceBtn:       { background: "#12121a", border: "1px solid #2e2e3e", borderRadius: 12, padding: "20px 18px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 8, color: "#fff" },
-  choiceBtnTitle:  { fontSize: 16, fontWeight: 600, color: "#fff" },
-  choiceBtnDesc:   { fontSize: 13, color: "#7a7a8a", lineHeight: 1.4 },
   setupForm:       { display: "flex", flexDirection: "column", gap: 16 },
-  backLink:        { background: "none", border: "none", color: "#e8d44d", fontSize: 13, fontWeight: 600, cursor: "pointer", alignSelf: "flex-start", padding: 0 },
   setupField:      { display: "flex", flexDirection: "column", gap: 6 },
   setupLabel:      { fontSize: 12, color: "#8a8a9a", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.6px" },
   setupInput:      { padding: "12px 14px", background: "#12121a", border: "1px solid #2e2e3e", borderRadius: 8, color: "#fff", fontSize: 15, outline: "none" },
@@ -794,10 +786,7 @@ const S = {
   sumWrap:         { padding: "16px 20px" },
   sumCard:         { background: "#1a1a24", border: "1px solid #2a2a3a", borderRadius: 14, padding: 18 },
   sumTop:          { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
-  sumTopR:         { display: "flex", alignItems: "center", gap: 10 },
   sumLabel:        { fontSize: 12, color: "#6a6a7a", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.8px" },
-  settledBadge:    { display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#4caf50", background: "#4caf5018", padding: "3px 8px", borderRadius: 20, fontWeight: 600 },
-  rBadge:          { fontSize: 10, fontWeight: 600 },
   statusRow:       { display: "flex", gap: 12, marginBottom: 14, flexWrap: "wrap" },
   statusItem:      { flex: 1, minWidth: "45%", display: "flex", flexDirection: "column", gap: 4 },
   statusPerson:    { fontSize: 11, color: "#6a6a7a", fontWeight: 600 },
