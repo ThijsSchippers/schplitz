@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { normalizeAnswer } from "../../utils.js";
 import { unsharedCount } from "../app.js";
 import { hero, tallyTitle, errorText } from "./format.js";
-import { Button, Field, Icon, TopBar, ICON_BUTTON } from "./components.jsx";
+import { Button, Chip, Field, Icon, TopBar, ICON_BUTTON } from "./components.jsx";
 import { MAX_MEMBERS } from "../tally.js";
 import { FLAG_LEGACY } from "../schema.js";
 import { C, S } from "./theme.js";
@@ -27,7 +27,9 @@ export function Home({ tallies, v1, onOpen, onStart, onConvert, onOpenFile, onIn
     <>
       <header style={{ ...S.row, minHeight: 44 }}>
         <h1 style={{ ...S.h1, flex: 1 }}>Schplitz</h1>
-        <span style={{ fontSize: 11, color: C.accent, border: `1px solid ${C.accentBorder}`, borderRadius: 999, padding: "3px 8px" }}>2 · preview</span>
+        {location.pathname.startsWith("/v2") && (
+          <span style={{ fontSize: 11, color: C.accent, border: `1px solid ${C.accentBorder}`, borderRadius: 999, padding: "3px 8px" }}>2 · preview</span>
+        )}
       </header>
 
       {v1 && !v1.converted && (
@@ -57,7 +59,7 @@ export function Home({ tallies, v1, onOpen, onStart, onConvert, onOpenFile, onIn
       )}
       <Button icon="add" onClick={onStart}>Start a tally</Button>
       <Button variant="ghost" icon="upload_file" onClick={() => fileInput.current?.click()}>Open a full copy</Button>
-      <input ref={fileInput} type="file" accept=".schplitz,text/plain" aria-label="Full copy file" hidden
+      <input ref={fileInput} type="file" accept=".schplitz,.txt,.json,text/plain,application/json" aria-label="Full copy file" hidden
         onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onOpenFile(f); }} />
       {v1?.converted && (
         <Button variant="ghost" onClick={onConvert}>Bring in Schplitz 1 data again</Button>
@@ -197,6 +199,48 @@ export function ConvertV1({ v1, onBack, onConvert }) {
         <p style={S.muted}>Use the same answer as {v1.names.find(n => n !== v1.myName)}. Both phones need it to find each other.</p>
       </>)}
       <Button disabled={!ready || busy} onClick={submit}>{busy ? "Bringing it in…" : "Bring it in"}</Button>
+    </>
+  );
+}
+
+/**
+ * An old Schplitz 1 link (or text export) opened in Schplitz 2 (migration doc, step 5).
+ * needsName: this phone has no tally for it yet, so ask which name is yours.
+ */
+export function OldLink({ share, needsName, onBack, onSubmit }) {
+  const [answer, setAnswer] = useState("");
+  const [myName, setMyName] = useState(null);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const ready = normalizeAnswer(answer) && (!needsName || myName) && !busy;
+
+  async function submit() {
+    setBusy(true); setError(null);
+    try { await onSubmit({ answer, myName }); } catch (err) { setError(errorText(err)); setBusy(false); }
+  }
+
+  return (
+    <>
+      <TopBar title="A Schplitz 1 link" onBack={onBack} />
+      <section style={S.card}>
+        <p style={{ margin: 0, fontSize: 15 }}>This link is from the old version of Schplitz. It opens here too.</p>
+        <p style={{ ...S.muted, marginTop: 8 }}>
+          {needsName ? "The tally comes in with all its entries." : "It can update the entries of your tally from Schplitz 1."}
+        </p>
+      </section>
+      <section style={S.card}>
+        <p style={{ ...S.muted, marginBottom: 6 }}>The question</p>
+        <p style={{ margin: 0, fontSize: 18 }}>{share.question || "(no question)"}</p>
+      </section>
+      <Field label="Your answer" type="password" autoComplete="off" value={answer} onChange={e => setAnswer(e.target.value)} hint={ANSWER_HINT} autoFocus />
+      {needsName && (<>
+        <h2 style={S.h2}>Which one are you?</h2>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {share.names.map(n => <Chip key={n} on={myName === n} onClick={() => setMyName(n)}>{n}</Chip>)}
+        </div>
+      </>)}
+      {error && <p role="alert" style={{ color: C.danger, fontSize: 14, margin: 0 }}>{error}</p>}
+      <Button disabled={!ready} onClick={submit}>{busy ? "Opening…" : "Open"}</Button>
     </>
   );
 }

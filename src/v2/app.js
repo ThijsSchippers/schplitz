@@ -4,7 +4,10 @@
 
 import { createTally, joinTally, mergePayload, addPayment, addMember, renameTally, allEntries, dayNumber, settled } from "./tally.js";
 import { deriveKey, encodeLink, decodeLink, readHeader } from "./link.js";
-import { V1_STORAGE_KEY, convertFromDevice, defaultRate, fingerprint, looksLikeMismatchedAnswer, readV1Storage, reimportFromDevice } from "./migrate.js";
+import {
+  V1_STORAGE_KEY, convertFromDevice, defaultRate, fingerprint, looksLikeMismatchedAnswer, readV1Storage, reimportFromDevice,
+  readV1Share, openV1Share, applyV1Share,
+} from "./migrate.js";
 import { emptyLocal } from "./cache.js";
 import { SchplitzError } from "./schema.js";
 import { decimalsOf, isoOfDay, toMinorUnits } from "./encoding.js";
@@ -173,10 +176,21 @@ export const MAX_FILE_BYTES = 10_000_000;
 
 /** Reads a full-copy file (or any text holding a link) and returns the link. Throws "not-a-link" or "too-large". */
 export async function linkFromFile(file) {
+  const found = await readLinkFile(file);
+  if (found.kind !== "link") throw new SchplitzError("not-a-link", "This isn't a Schplitz link, or part of it is missing.");
+  return found.url;
+}
+
+/**
+ * Reads a file someone opened: a Schplitz 2 full copy ({ kind: "link", url }), or an old
+ * Schplitz 1 link or text export ({ kind: "old", share }). Throws "not-a-link" or "too-large".
+ */
+export async function readLinkFile(file) {
   if (file.size > MAX_FILE_BYTES) throw new SchplitzError("too-large", "That file is too big to be a Schplitz full copy.");
   const text = (await file.text()).trim();
+  if (text.includes("#share=") || text.startsWith("{")) return { kind: "old", share: await readV1Share(text) };
   readHeader(text);   // throws SchplitzError("not-a-link") for anything else
-  return text;
+  return { kind: "link", url: text };
 }
 
 /** How much this phone holds, for deciding when a backup is due. */
@@ -194,6 +208,45 @@ export function backupDue(tally, now = Date.now()) {
 
 /** Call after a backup was saved or shared. */
 export const markBackedUp = (cache, tally) => save(cache, tally, { lastBackup: { entries: entryCount(tally), at: Date.now() } });
+
+// ─── old Schplitz 1 links (migration doc, step 5) ────────────────────────────
+
+const sameNames = (a, b) => a.length === b.length && [...a].sort().join("\n") === [...b].sort().join("\n");
+
+/** This phone's converted tally an old link belongs to (same question and names), or null. */
+export async function tallyForOldLink(cache, share) {
+  const all = await cache.listTallies();
+  return all.find(t => t.v1 && t.question === share.question && sameNames(t.members.map(m => m.name), share.names)) ?? null;
+}
+
+/**
+ * Opens an old Schplitz 1 link (or text export) with the answer. `myName` is only needed
+ * when this phone has no tally for it yet. Returns { outcome, tally, key }:
+ *   created     a new tally was made from the link
+ *   updated     the other person's old entries were refreshed from a newer link
+ *   up-to-date  their own version has already arrived in Schplitz 2; the link changes nothing
+ *   older       the link is older than what this phone has; nothing changed
+ * Throws "cannot-decrypt" for a wrong answer, and "answer-mismatch" when the link opens but
+ * this phone's tally was brought in with a different answer.
+ */
+export async function openOldLink(cache, share, { answer, myName, rateFor }) {
+  const opened = await openV1Share(share, answer);
+  const match = await tallyForOldLink(cache, share);
+  if (match) {
+    const r = await applyV1Share(match, opened, { answer, rateFor });
+    if (r.outcome === "different-tally")
+      throw new SchplitzError("answer-mismatch", "This old link opens with a different answer than the one you used for this tally.");
+    await save(cache, match);
+    return { outcome: r.outcome, tally: match, key: await cache.loadKey(match.id) };
+  }
+  if (!share.names.includes(myName)) throw new SchplitzError("invalid-input", "Pick which name is yours.");
+  const r = await applyV1Share(null, opened, { myName, answer, rateFor });
+  withLocal(r.tally);
+  await cache.saveTallyWithKey(r.tally, r.key);
+  return { outcome: "created", tally: r.tally, key: r.key };
+}
+
+export { readV1Share as readOldLink };
 
 // ─── v1 data on this phone ───────────────────────────────────────────────────
 

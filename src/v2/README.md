@@ -1,6 +1,6 @@
 # Schplitz v2
 
-Schplitz 2 for pairs, served as a preview at `/v2/` next to Schplitz 1 (same site, so it can read v1 data).
+Schplitz 2, for pairs and groups up to 10. Served at `/v2/`, and at `/` when built with `VITE_V2_AT_ROOT=true` (see [`docs/launch.md`](../../docs/launch.md)). Same site as Schplitz 1, so it can read the v1 data.
 The design is in [`docs/v2.0.md`](../../docs/v2.0.md) and [`docs/v2.0-migration.md`](../../docs/v2.0-migration.md).
 
 ```
@@ -65,8 +65,9 @@ npm run lint            # ESLint, scoped to src/v2
 | `test/app.test.js` | The cache and the app layer: two phones from invite to dispute, currencies, converting v1 data. |
 | `test/ui-logic.test.js` | The numpad rules and the text on screen. |
 | `test/screens.test.jsx` | The React screens in jsdom: starting, logging, whose turn, details, the keyboard, focus in sheets, a group of three. |
+| `test/oldlinks.test.js` | Old Schplitz 1 links and text exports opened in Schplitz 2. |
 | `test/groups.test.js` | Groups (who's here, standings, names, adding people, new phones, "about even"), full copies, backups, browser hints, QR. |
 
 Each tally derives its key with 600,000 PBKDF2 iterations, so tests that create many tallies take a few seconds.
 
-**In a real browser**, `e2e/` drives the built preview with separate browser profiles as separate phones: invite, join, logging, review, *Not me*, edits, a wiped phone, two converted v1 phones meeting, a link opened in a second tab, and a group of three with a full-copy file restoring a wiped phone. With a preview server running (`npm run build && npx vite preview --port 4173`), run `npm run e2e`.
+**In a real browser**, `e2e/` drives the built preview with separate browser profiles as separate phones: invite, join, logging, review, *Not me*, edits, a wiped phone, two converted v1 phones meeting, a link opened in a second tab, and a group of three with a full-copy file restoring a wiped phone. With a preview server running (`npm run build && npx vite preview --port 4173`), run `npm run e2e`. `npm run e2e:launch` checks the launch switch; it needs a second server for the launch build (see `docs/launch.md`).

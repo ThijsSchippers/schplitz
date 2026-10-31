@@ -6,13 +6,13 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { openCache, requestPersistence } from "../cache.js";
 import {
   save, startTally, openLink, unlockLink, completeJoin, recordPayment, markShared, v1Status, convertDeviceV1, valueInTallyCurrency,
-  addPerson, linkFromFile, backupDue, markBackedUp,
+  addPerson, readLinkFile, backupDue, markBackedUp, readOldLink, tallyForOldLink, openOldLink,
 } from "../app.js";
 import { editPayment, voidPayment, notMe, askAbout, acceptDispute, keepAsIs, addPaidBack, setFreshStart, recategorize, renameTally, paymentState } from "../tally.js";
 import { defaultRate } from "../migrate.js";
 import { errorText, hero, nameOf } from "./format.js";
 import { Toast } from "./components.jsx";
-import { Home, Start, Join, ConvertV1, InAppHint } from "./Onboarding.jsx";
+import { Home, Start, Join, ConvertV1, InAppHint, OldLink } from "./Onboarding.jsx";
 import TallyView from "./TallyView.jsx";
 import LogPayment from "./LogPayment.jsx";
 import Details from "./Details.jsx";
@@ -31,9 +31,9 @@ const MESSAGES = {
 /** Links point back at wherever this app is served (e.g. /v2/ during the preview). */
 const linkOrigin = () => `${location.origin}${location.pathname.replace(/\/[^/]*$/, "")}`;
 
-/** Takes a `#s=` link out of the address bar (so reloading doesn't open it again) and returns it. */
+/** Takes a link (`#s=`, or an old `#share=`) out of the address bar, so reloading doesn't open it again. */
 function takeLinkFromAddressBar() {
-  if (!location.hash.startsWith("#s=")) return null;
+  if (!location.hash.startsWith("#s=") && !location.hash.startsWith("#share=")) return null;
   const url = location.href;
   history.replaceState(null, "", location.pathname + location.search);
   return url;
@@ -82,6 +82,12 @@ export default function App({ rateFor = defaultRate, cacheName }) {
   const handleLink = useCallback(async (c, url) => {
     lastLink.current = url;
     try {
+      if (url.includes("#share=")) {
+        const share = await readOldLink(url);
+        setCurrent(null); setSheet(null);
+        setView({ name: "oldLink", share, needsName: !(await tallyForOldLink(c, share)) });
+        return;
+      }
       const r = await openLink(c, url);
       if (r.kind === "join") { setCurrent(null); setSheet(null); setView({ name: "join", url, header: r.header }); return; }
       const { report, tally } = r;
@@ -177,7 +183,25 @@ export default function App({ rateFor = defaultRate, cacheName }) {
   }
 
   async function openFile(file) {
-    try { await handleLink(cache, await linkFromFile(file)); } catch (err) { flash(errorText(err), true); }
+    try {
+      const found = await readLinkFile(file);
+      if (found.kind === "link") await handleLink(cache, found.url);
+      else setView({ name: "oldLink", share: found.share, needsName: !(await tallyForOldLink(cache, found.share)) });
+    } catch (err) { flash(errorText(err), true); }
+  }
+
+  const OLD_LINK_RESULT = {
+    created: "Your Schplitz 1 tally is in.",
+    updated: "Updated with the newer entries from this link.",
+    "up-to-date": "Your tally already has everything from this old link.",
+    older: "This link is older than what you have. Nothing changed.",
+  };
+
+  async function openOld({ answer, myName }) {
+    const { outcome, tally, key } = await openOldLink(cache, view.share, { answer, myName, rateFor });
+    await refresh(cache);
+    showTally(tally, key);
+    flash(OLD_LINK_RESULT[outcome]);
   }
 
   async function install() {
@@ -269,6 +293,9 @@ export default function App({ rateFor = defaultRate, cacheName }) {
       break;
     case "join":
       screen = <Join header={view.header} onBack={goHome} onUnlock={(answer) => unlockLink(cache, view.url, answer)} onJoin={joinTally} />;
+      break;
+    case "oldLink":
+      screen = <OldLink share={view.share} needsName={view.needsName} onBack={goHome} onSubmit={openOld} />;
       break;
     case "convert":
       screen = v1 ? <ConvertV1 v1={v1} onBack={goHome} onConvert={convertV1} /> : null;

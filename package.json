@@ -17,7 +17,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src/v2",
-    "e2e": "node e2e/two-phones.cjs && node e2e/more-paths.cjs && node e2e/two-tabs.cjs && node e2e/groups.cjs"
+    "e2e": "node e2e/two-phones.cjs && node e2e/more-paths.cjs && node e2e/two-tabs.cjs && node e2e/groups.cjs",
+    "e2e:launch": "node e2e/launch.cjs"
   },
   "dependencies": {
     "qrcode-generator": "^1.4.4",
