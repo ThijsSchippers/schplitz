@@ -77,7 +77,10 @@ export function shareMessage(tally, lastCategory) {
 
 export const inviteMessage = (tally) => `${nameOf(tally, tally.me.member)} started a Schplitz tally with you`;
 
+/** "Liam asks about the amount" */
 export const QUERY_LABELS = { amount: "the amount", date: "the date", category: "the category", duplicate: "a possible duplicate" };
+/** The reason chips: "What's off? amount / date / category / duplicate" */
+export const QUERY_CHIPS = { amount: "Amount", date: "Date", category: "Category", duplicate: "Duplicate" };
 
 /**
  * Every payment this phone knows, newest first, with what the screens need.
@@ -101,7 +104,9 @@ export function payments(tally) {
 export function errorText(err) {
   switch (err?.code) {
     case "cannot-decrypt": return "That answer doesn't match this tally. Check with the person who sent it.";
-    case "answer-mismatch": return "This is your old tally, but your answers don't match. One of you typed it differently.";
+    case "answer-mismatch": return err.message.includes("used before")
+      ? "That answer doesn't match the one you used before for this tally."
+      : "This is your old tally, but your answers don't match. One of you typed it differently.";
     case "not-a-link": return "This isn't a Schplitz link, or part of it is missing.";
     case "unsupported-version": return "This link is from a newer version of Schplitz. Reload the page to update.";
     case "invalid-payload": return "This link is damaged and can't be opened.";

@@ -6,7 +6,8 @@ import {
   startTally, openLink, unlockLink, completeJoin, recordPayment, prepareShare, markShared, unsharedCount,
   defaultCurrency, recentCurrencies, valueInTallyCurrency, v1Status, convertDeviceV1, STICKY_CURRENCY_MS,
 } from "../app.js";
-import { balance, whoseTurn, notMe, logOf } from "../tally.js";
+import { balance, whoseTurn, notMe, logOf, addPayment } from "../tally.js";
+import { decodeLink } from "../link.js";
 
 const TODAY = 20_400;
 const COFFEE = 7, MEALS = 2;
@@ -90,6 +91,29 @@ describe("two phones, start to finish", () => {
   });
 });
 
+describe("fixes from the second code review", () => {
+  it("a link prepared right after a change includes it", async () => {
+    const { liam, key } = await pairOnTwoPhones();
+    const pending = addPayment(liam, { category: COFFEE, amount: 640 });   // not awaited, like a quick tap
+    const { url } = await prepareShare(liam, key, { origin: ORIGIN });
+    await pending;
+    const { payload } = await decodeLink(url, key);
+    expect(payload.e.some(e => e.t === "pay" && e.a === 640)).toBe(true);
+  });
+
+  it("tells other tabs when a tally is saved or removed", async () => {
+    const name = `test-${crypto.randomUUID()}`;
+    const tabA = await openCache(name), tabB = await openCache(name);
+    const heard = [];
+    const stop = tabB.onOtherTabChange(id => heard.push(id));
+    const { tally } = await startTally(tabA, { question: "q", answer: "a", myName: "A", friendNames: ["B"] });
+    await tabA.forgetTally(tally.id);
+    await new Promise(r => { setTimeout(r, 20); });
+    expect(heard).toEqual([tally.id, tally.id]);
+    stop(); tabA.close(); tabB.close();
+  });
+});
+
 describe("currencies", () => {
   it("locks the value in the tally currency at the payment date", async () => {
     const cache = await phone();
@@ -107,6 +131,8 @@ describe("currencies", () => {
     expect(defaultCurrency(tally, Date.now() + STICKY_CURRENCY_MS + 1)).toBe("EUR");
     await recordPayment(cache, tally, { category: MEALS, amount: 900, currency: "USD", paidOn: TODAY, rateFor });
     expect(recentCurrencies(tally)).toEqual(["USD", "THB"]);
+    await recordPayment(cache, tally, { category: MEALS, amount: 900, currency: "EUR", paidOn: TODAY, rateFor });
+    expect(defaultCurrency(tally)).toBe("EUR");   // paying in the tally currency ends the 12 hours
   });
 });
 
@@ -151,6 +177,17 @@ describe("bringing in the v1 tally on this phone", () => {
     expect((await openLink(cache, url)).kind).toBe("join");
     await expect(unlockLink(cache, url, "lisboa")).rejects.toMatchObject({ code: "answer-mismatch" });
     expect(tally.id).not.toBe(liam.tally.id);
+  });
+
+  it("can be brought in again after removing it, but not with a different answer", async () => {
+    const cache = await phone();
+    const storage = memoryStorage({ schplitzExpenses: v1() });
+    const { tally } = await convertDeviceV1(cache, { storage, answer: "lisbon", rateFor });
+    await expect(convertDeviceV1(cache, { storage, answer: "porto", rateFor })).rejects.toMatchObject({ code: "answer-mismatch" });
+    expect(await cache.listTallies()).toHaveLength(1);
+    await cache.forgetTally(tally.id);
+    expect((await v1Status(cache, storage)).converted).toBe(false);
+    expect((await convertDeviceV1(cache, { storage, answer: "lisbon", rateFor })).tally.id).toBe(tally.id);
   });
 
   it("ignores v1 data it can't convert", async () => {

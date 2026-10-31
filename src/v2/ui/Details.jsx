@@ -1,10 +1,10 @@
 // Details (docs/v2.0.md §9.7): the exact numbers, disputes, and changes.
 import { useState } from "react";
 import { CATEGORIES } from "../categories.js";
-import { allEntries, balance, dayNumber, openDisputes, paymentState, whoseTurn, QUERY_REASONS } from "../tally.js";
+import { allEntries, balance, dayNumber, freshStart, openDisputes, paymentState, whoseTurn, QUERY_REASONS } from "../tally.js";
 import { decimalsOf } from "../encoding.js";
 import { minorOfText, textOfMinor } from "./numpad.js";
-import { money, nameOf, payments, dayLabel, QUERY_LABELS } from "./format.js";
+import { money, nameOf, payments, dayLabel, QUERY_LABELS, QUERY_CHIPS } from "./format.js";
 import { Button, Chip, Icon, Sheet, TopBar } from "./components.jsx";
 import { C, S } from "./theme.js";
 
@@ -37,7 +37,9 @@ export default function Details({ tally, onBack, actions }) {
   const [confirm, setConfirm] = useState(null);
   const [paidBack, setPaidBack] = useState(null);
 
-  const paidTotal = (id) => list.filter(p => p.payer === id).reduce((sum, p) => sum + p.v, 0);
+  // After "start fresh", converted v1 entries don't count, here or in the balance.
+  const counted = freshStart(tally) ? list.filter(p => !p.legacy) : list;
+  const paidTotal = (id) => counted.filter(p => p.payer === id).reduce((sum, p) => sum + p.v, 0);
   const payOf = (d) => paymentState(tally, ...d.r);
   const describe = (p) => p ? `${CATEGORIES[p.k]?.name ?? "Payment"} · ${money(p.v, tally.currency)}` : "a payment";
 
@@ -154,7 +156,7 @@ export default function Details({ tally, onBack, actions }) {
         <Sheet title="What's off?" onClose={() => setAsking(null)}>
           <p style={S.muted}>{nameOf(tally, asking.payer)} sees your question and can fix it.</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {QUERY_REASONS.map(r => <Chip key={r} on={false} onClick={() => { actions.ask(asking, r); setAsking(null); }}>{QUERY_LABELS[r].replace(/^(the|a possible) /, "")}</Chip>)}
+            {QUERY_REASONS.map(r => <Chip key={r} on={false} onClick={() => { actions.ask(asking, r); setAsking(null); }}>{QUERY_CHIPS[r]}</Chip>)}
           </div>
         </Sheet>
       )}

@@ -4,6 +4,9 @@ import { ICON_PATHS } from "./icons.js";
 import { CATEGORIES, TILE_ORDER, OTHER } from "../categories.js";
 import { C, S, FONT } from "./theme.js";
 
+const LONG_PRESS_MS = 600;   // holding backspace this long clears the amount
+export const ICON_BUTTON = { background: "none", border: "none", cursor: "pointer", display: "flex", padding: 10, margin: -4 };   // ≥ 44px tap target
+
 export function Icon({ name, size = 24, style }) {
   return (
     <svg width={size} height={size} viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true" focusable="false" style={{ flexShrink: 0, ...style }}>
@@ -33,7 +36,7 @@ export function TopBar({ title, onBack, right }) {
   return (
     <header style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 44 }}>
       {onBack && (
-        <button type="button" onClick={onBack} aria-label="Back" style={{ background: "none", border: "none", color: C.soft, padding: 6, cursor: "pointer", display: "flex" }}>
+        <button type="button" onClick={onBack} aria-label="Back" style={{ ...ICON_BUTTON, color: C.soft }}>
           <Icon name="arrow_back" />
         </button>
       )}
@@ -55,21 +58,32 @@ export function Field({ label, hint, ...input }) {
   );
 }
 
-/** A panel over the screen. Escape and the backdrop close it. */
+/**
+ * A panel over the screen. Escape and the backdrop close it. Focus moves into the
+ * panel when it opens and back to where it was when it closes.
+ */
 export function Sheet({ title, onClose, children }) {
+  const panel = useRef(null);
+  const close = useRef(onClose);
+  close.current = onClose;
   useEffect(() => {
-    const onKey = (e) => { if (e.key === "Escape") onClose?.(); };
+    const before = document.activeElement;
+    panel.current?.focus();
+    const onKey = (e) => { if (e.key === "Escape") close.current?.(); };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      if (before instanceof HTMLElement && before.isConnected) before.focus();
+    };
+  }, []);
   return (
     <div role="dialog" aria-modal="true" aria-label={title} onClick={onClose}
       style={{ position: "fixed", inset: 0, background: "#000a", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 20 }}>
-      <div onClick={e => e.stopPropagation()}
+      <div ref={panel} tabIndex={-1} onClick={e => e.stopPropagation()}
         style={{ ...S.card, width: "100%", maxWidth: 480, borderRadius: "18px 18px 0 0", padding: "18px 16px 24px", display: "flex", flexDirection: "column", gap: 12, maxHeight: "90dvh", overflowY: "auto" }}>
         <div style={S.row}>
-          <h2 style={{ ...S.h2, flex: 1 }}>{title}</h2>
-          {onClose && <button type="button" onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", display: "flex" }}><Icon name="close" /></button>}
+          <h2 style={{ ...S.h2, flex: 1, outline: "none" }}>{title}</h2>
+          {onClose && <button type="button" onClick={onClose} aria-label="Close" style={{ ...ICON_BUTTON, color: C.muted }}><Icon name="close" /></button>}
         </div>
         {children}
       </div>
@@ -80,9 +94,9 @@ export function Sheet({ title, onClose, children }) {
 export function Toast({ toast }) {
   if (!toast) return null;
   return (
-    <div role="status" aria-live="polite"
+    <div role={toast.error ? "alert" : "status"} aria-live={toast.error ? "assertive" : "polite"}
       style={{ position: "fixed", top: 62, left: "50%", transform: "translateX(-50%)", zIndex: 30, maxWidth: "calc(100% - 32px)",
-        background: toast.error ? C.danger : C.card, border: `1px solid ${toast.error ? C.danger : C.cardBorder}`, color: C.text,
+        background: toast.error ? C.dangerFill : C.card, border: `1px solid ${toast.error ? C.dangerFill : C.cardBorder}`, color: C.text,
         padding: "10px 16px", borderRadius: 12, fontSize: 14, boxShadow: "0 6px 24px #0008" }}>
       {toast.text}
     </div>
@@ -123,7 +137,7 @@ export function Numpad({ onKey, separator, decimalsAllowed }) {
   const key = (k, label, aria) => (
     <button key={k} type="button" aria-label={aria ?? label} disabled={k === "." && !decimalsAllowed}
       onClick={() => onKey(k)}
-      onPointerDown={k === "back" ? () => { stop(); timer.current = setTimeout(() => onKey("clear"), 600); } : undefined}
+      onPointerDown={k === "back" ? () => { stop(); timer.current = setTimeout(() => onKey("clear"), LONG_PRESS_MS); } : undefined}
       onPointerUp={k === "back" ? stop : undefined}
       onPointerLeave={k === "back" ? stop : undefined}
       style={{ background: C.card, border: "none", borderRadius: 10, color: C.text, fontSize: 22, fontFamily: FONT, minHeight: 52,

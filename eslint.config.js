@@ -33,7 +33,7 @@ export default [
   },
   {
     // Test fakes stand in for async APIs like fetch without awaiting anything.
-    files: ["src/v2/test/**/*.js"],
+    files: ["src/v2/test/**/*.{js,jsx}"],
     rules: { "require-await": "off" },
   },
 ];

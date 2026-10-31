@@ -16,7 +16,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "lint": "eslint src/v2"
+    "lint": "eslint src/v2",
+    "e2e": "node e2e/two-phones.cjs && node e2e/more-paths.cjs && node e2e/two-tabs.cjs"
   },
   "dependencies": {
     "react": "^18.2.0",

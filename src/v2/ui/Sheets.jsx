@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { CATEGORIES, TILE_ORDER } from "../categories.js";
 import { usualAmount, QUERY_REASONS } from "../tally.js";
 import { prepareShare } from "../app.js";
-import { money, nameOf, othersLabel, payments, shareMessage, inviteMessage, QUERY_LABELS } from "./format.js";
+import { money, nameOf, othersLabel, payments, shareMessage, inviteMessage, QUERY_CHIPS } from "./format.js";
 import { Button, Chip, Icon, Sheet } from "./components.jsx";
 import { C, S } from "./theme.js";
 
@@ -21,7 +21,7 @@ export function ShareSheet({ tally, cryptoKey, origin, request, onShared, onClos
 
   useEffect(() => {
     let cancelled = false;
-    prepareShare(tally, cryptoKey, { origin }).then(l => { if (!cancelled) setLink(l); }, e => setError(e));
+    prepareShare(tally, cryptoKey, { origin }).then(l => { if (!cancelled) setLink(l); }, e => { if (!cancelled) setError(e); });
     return () => { cancelled = true; };
   }, [tally, cryptoKey, origin]);
 
@@ -83,7 +83,7 @@ export function Review({ tally, report, onNotMe, onAsk, onClose }) {
             </p>
             {asking === e ? (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-                {QUERY_REASONS.map(r => <Chip key={r} on={false} onClick={() => { onAsk(e, r); setActed(true); finish(e); setAsking(null); }}>{QUERY_LABELS[r].replace(/^(the|a possible) /, "")}</Chip>)}
+                {QUERY_REASONS.map(r => <Chip key={r} on={false} onClick={() => { onAsk(e, r); setActed(true); finish(e); setAsking(null); }}>{QUERY_CHIPS[r]}</Chip>)}
               </div>
             ) : (
               <div style={{ display: "flex", gap: 6, marginTop: 10 }}>

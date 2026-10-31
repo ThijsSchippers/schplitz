@@ -222,6 +222,9 @@ function queued(tally, task) {
   return run;
 }
 
+/** Resolves once every write started so far on this tally has finished (successfully or not). */
+export const settled = (tally) => queues.get(tally) ?? Promise.resolve();
+
 async function append(tally, fields, at) {
   const day = at ?? dayNumber();
   if (!isDay(day)) throw invalid("Invalid day");

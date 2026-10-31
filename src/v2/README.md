@@ -32,7 +32,8 @@ npm run build    # builds Schplitz 1 (dist/index.html) and the preview (dist/v2/
 
 ## Conventions
 
-- **Functions mutate the tally in place.** Writes are queued per tally, so concurrent calls (rapid taps) are applied one after another. UI state should hold a version counter or a clone, not the tally object.
+- **Functions mutate the tally in place.** Writes are queued per tally, so concurrent calls (rapid taps) are applied one after another; `settled(tally)` waits for them (sharing does). UI state should hold a version counter or a clone, not the tally object.
+- **Several tabs:** every save is announced to other tabs (`cache.onOtherTabChange`), which reload the tally instead of overwriting it later.
 - **Errors are `SchplitzError` with a stable `code`** for the UI to map to a message:
   - input and permission: `invalid-input`, `not-allowed`, `not-found`;
   - links: `not-a-link`, `unsupported-version`, `cannot-decrypt`, `invalid-payload`, `too-large`.
@@ -61,7 +62,8 @@ npm run lint            # ESLint, scoped to src/v2
 | `test/hardening.test.js` | Validation, hostile links, concurrency, rounding, and the other fixes from the code review. |
 | `test/app.test.js` | The cache and the app layer: two phones from invite to dispute, currencies, converting v1 data. |
 | `test/ui-logic.test.js` | The numpad rules and the text on screen. |
+| `test/screens.test.jsx` | The React screens in jsdom: starting, logging, whose turn, details, the keyboard, focus in sheets. |
 
 Each tally derives its key with 600,000 PBKDF2 iterations, so tests that create many tallies take a few seconds.
 
-**In a real browser**, `e2e/` drives the built preview with separate browser profiles as separate phones: invite, join, logging, review, *Not me*, edits, a wiped phone, and two converted v1 phones meeting. See the comment at the top of each script.
+**In a real browser**, `e2e/` drives the built preview with separate browser profiles as separate phones: invite, join, logging, review, *Not me*, edits, a wiped phone, two converted v1 phones meeting, and a link opened in a second tab. With a preview server running (`npm run build && npx vite preview --port 4173`), run `npm run e2e`.

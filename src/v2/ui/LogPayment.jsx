@@ -7,7 +7,7 @@ import { decimalsOf, dayOfIsoDate, isoOfDay } from "../encoding.js";
 import { defaultCurrency, recentCurrencies, valueInTallyCurrency } from "../app.js";
 import { pressKey, fitDecimals, textOfMinor, typedOfMinor, minorOfText, displayTyped, decimalSeparator, keyFromKeyboard } from "./numpad.js";
 import { money, locale, addLabel } from "./format.js";
-import { Button, Chip, Icon, Numpad, Sheet, Tiles } from "./components.jsx";
+import { Button, Chip, Icon, Numpad, Sheet, Tiles, ICON_BUTTON } from "./components.jsx";
 import { C, S, FONT } from "./theme.js";
 
 /**
@@ -84,7 +84,7 @@ export default function LogPayment({ tally, initial, onSubmit, onCancel, rateFor
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10, minHeight: "calc(100dvh - 44px)" }}>
       <header style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 40 }}>
-        <button type="button" onClick={onCancel} aria-label="Close" style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", display: "flex", padding: 4 }}>
+        <button type="button" onClick={onCancel} aria-label="Close" style={{ ...ICON_BUTTON, color: C.muted }}>
           <Icon name="close" />
         </button>
         <h1 style={{ ...S.h2, flex: 1, textAlign: "center" }}>{editing ? "Change payment" : "I paid"}</h1>
@@ -107,7 +107,7 @@ export default function LogPayment({ tally, initial, onSubmit, onCancel, rateFor
       <Tiles value={category} onChange={chooseCategory} />
 
       <div style={{ textAlign: "center", margin: "6px 0 2px" }} aria-live="polite">
-        <div style={{ fontSize: 38, fontWeight: 650, letterSpacing: -0.5, fontVariantNumeric: "tabular-nums", color: amount.suggested || !amount.text ? C.faint : C.text }}>
+        <div style={{ fontSize: 38, fontWeight: 650, letterSpacing: -0.5, fontVariantNumeric: "tabular-nums", color: amount.suggested || !amount.text ? C.muted : C.text }}>
           {displayTyped(amount.text, currency, loc)}
         </div>
         <div style={{ fontSize: 12, color: C.muted, minHeight: 15 }}>{caption}</div>

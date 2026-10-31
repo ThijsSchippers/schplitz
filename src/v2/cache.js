@@ -5,6 +5,10 @@
 // answer every time, and keeps history older than the window. Losing it costs
 // convenience, never the tally.
 //
+// Several tabs can have the app open (a link from a chat often opens a new one). Every
+// save is announced to the other tabs on a BroadcastChannel, so they reload the tally
+// instead of overwriting it with an older copy.
+//
 // IndexedDB stores:
 //   tallies  tally objects (tally.js), plus `local`: phone-only state that never travels
 //   keys     each tally's AES-GCM key as a non-extractable CryptoKey
@@ -42,6 +46,9 @@ export const emptyLocal = () => ({
  */
 export async function openCache(name = DB_NAME) {
   const request = indexedDB.open(name, DB_VERSION);
+  const channel = typeof BroadcastChannel === "function" ? new BroadcastChannel(`${name}-changes`) : null;
+  const announce = (id) => channel?.postMessage({ id });
+  const withLocalDefaults = (tally) => ({ ...tally, local: { ...emptyLocal(), ...tally.local } });
   request.onupgradeneeded = () => {
     const db = request.result;
     if (!db.objectStoreNames.contains("tallies")) db.createObjectStore("tallies", { keyPath: "id" });
@@ -57,21 +64,29 @@ export async function openCache(name = DB_NAME) {
       return all.sort((a, b) => (b.local?.lastSeen ?? 0) - (a.local?.lastSeen ?? 0));
     },
     loadTally: (id) => transaction(db, "tallies", "readonly", tx => promisify(tx.objectStore("tallies").get(id))).then(t => t ?? null),
-    saveTally: (tally) => transaction(db, "tallies", "readwrite", tx => promisify(tx.objectStore("tallies").put({ ...tally, local: { ...emptyLocal(), ...tally.local } }))),
+    saveTally: (tally) => transaction(db, "tallies", "readwrite", tx => promisify(tx.objectStore("tallies").put(withLocalDefaults(tally))))
+      .then(() => announce(tally.id)),
     /** Saves a tally and its key together, so one is never cached without the other. */
     saveTallyWithKey: (tally, key) => transaction(db, ["tallies", "keys"], "readwrite", tx => Promise.all([
-      promisify(tx.objectStore("tallies").put({ ...tally, local: { ...emptyLocal(), ...tally.local } })),
+      promisify(tx.objectStore("tallies").put(withLocalDefaults(tally))),
       promisify(tx.objectStore("keys").put(key, tally.id)),
-    ])),
+    ])).then(() => announce(tally.id)),
     loadKey: (id) => transaction(db, "keys", "readonly", tx => promisify(tx.objectStore("keys").get(id))).then(k => k ?? null),
     /** Forgets a tally on this phone. The chat still has it. */
     forgetTally: (id) => transaction(db, ["tallies", "keys"], "readwrite", tx => Promise.all([
       promisify(tx.objectStore("tallies").delete(id)),
       promisify(tx.objectStore("keys").delete(id)),
-    ])),
+    ])).then(() => announce(id)),
     getMeta: (key) => transaction(db, "meta", "readonly", tx => promisify(tx.objectStore("meta").get(key))).then(v => v ?? null),
     setMeta: (key, value) => transaction(db, "meta", "readwrite", tx => promisify(tx.objectStore("meta").put(value, key))),
-    close: () => db.close(),
+    /** Calls `listener(tallyId)` when another tab saves or forgets a tally. Returns an unsubscribe function. */
+    onOtherTabChange(listener) {
+      if (!channel) return () => {};
+      const handler = (e) => listener(e.data?.id);
+      channel.addEventListener("message", handler);
+      return () => channel.removeEventListener("message", handler);
+    },
+    close: () => { channel?.close(); db.close(); },
   };
 }
 

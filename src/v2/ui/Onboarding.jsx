@@ -42,6 +42,9 @@ export function Home({ tallies, v1, onOpen, onStart, onConvert }) {
         <p style={{ ...S.muted, fontSize: 15, margin: "24px 4px 8px" }}>Keep track of who's ahead with a friend, so you know who covers next time. No accounts, no server.</p>
       )}
       <Button icon="add" onClick={onStart}>Start a tally</Button>
+      {v1?.converted && (
+        <Button variant="ghost" onClick={onConvert}>Bring in Schplitz 1 data again</Button>
+      )}
       <p style={{ ...S.muted, fontSize: 12, marginTop: 8 }}>
         Your tallies live in your chats: every link holds the balance. This phone only remembers them so you don't have to type the answer each time.
       </p>

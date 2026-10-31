@@ -2,7 +2,7 @@
 // model, links, the phone's cache and v1 conversion. Every function that changes a
 // tally also saves it to the cache.
 
-import { createTally, joinTally, mergePayload, addPayment, dayNumber } from "./tally.js";
+import { createTally, joinTally, mergePayload, addPayment, dayNumber, settled } from "./tally.js";
 import { deriveKey, encodeLink, decodeLink, readHeader } from "./link.js";
 import { V1_STORAGE_KEY, convertFromDevice, defaultRate, fingerprint, looksLikeMismatchedAnswer, readV1Storage, reimportFromDevice } from "./migrate.js";
 import { emptyLocal } from "./cache.js";
@@ -95,7 +95,8 @@ export async function valueInTallyCurrency(tally, amount, currency, day, rateFor
 export async function recordPayment(cache, tally, { category, amount, currency, paidOn = dayNumber(), rateFor }) {
   const { value, estimated } = await valueInTallyCurrency(tally, amount, currency, paidOn, rateFor);
   const entry = await addPayment(tally, { category, amount, currency, value, paidOn, estimated });
-  await save(cache, tally, currency === tally.currency ? {} : { lastCurrency: { c: currency, at: Date.now() } });
+  // Paying in the tally currency again ends the 12 hours of a foreign one.
+  await save(cache, tally, { lastCurrency: currency === tally.currency ? null : { c: currency, at: Date.now() } });
   return entry;
 }
 
@@ -118,10 +119,12 @@ export const unsharedCount = (tally) =>
   Math.max(0, (tally.writers[tally.me.writer]?.summary.s ?? 0) - (tally.local?.sharedSeq ?? 0));
 
 /**
- * Builds the link to share. The first share of a converted v1 tally is a full link
- * (migration doc, step 3); after that, normal links.
+ * Builds the link to share, once every change already started on the tally has been
+ * written (so a "Not me" tapped a moment ago is in it). The first share of a converted
+ * v1 tally is a full link (migration doc, step 3); after that, normal links.
  */
 export async function prepareShare(tally, key, { origin, today = dayNumber() } = {}) {
+  await settled(tally);
   const full = Boolean(tally.v1) && !tally.local?.handshakeSent;
   const link = await encodeLink(tally, key, { origin, today, full });
   return { ...link, full };
@@ -136,7 +139,8 @@ export function markShared(cache, tally, { full }) {
 
 /**
  * What v1 left on this phone: null if nothing convertible, else
- * { question, names, needsAnswer, converted, tallyId }.
+ * { question, names, needsAnswer, converted, tallyId }. `converted` is only true while
+ * the converted tally is still on this phone, so it can always be brought in again.
  */
 export async function v1Status(cache, storage = globalThis.localStorage) {
   const raw = storage?.getItem(V1_STORAGE_KEY);
@@ -146,7 +150,7 @@ export async function v1Status(cache, storage = globalThis.localStorage) {
   return {
     question: read.data.question, names: read.data.names, myName: read.data.myName,
     needsAnswer: !read.answer,
-    converted: done?.fingerprint === await fingerprint(raw),
+    converted: done?.fingerprint === await fingerprint(raw) && Boolean(await cache.loadTally(done.tallyId)),
     tallyId: done?.tallyId ?? null,
   };
 }
@@ -160,6 +164,11 @@ export async function convertDeviceV1(cache, { answer, storage = globalThis.loca
   const result = await convertFromDevice(raw, { answer, rateFor });
   if (result.needsAnswer) throw new SchplitzError("invalid-input", "The answer is needed to bring this tally in");
   if (!result.tally) throw new SchplitzError("not-found", "No Schplitz 1 tally on this phone");
+
+  // Bringing it in again with a different answer would derive a different tally: refuse.
+  const done = await cache.getMeta("v1Converted");
+  if (done?.tallyId && done.tallyId !== result.tally.id && await cache.loadTally(done.tallyId))
+    throw new SchplitzError("answer-mismatch", "That answer doesn't match the one you used before");
 
   let { tally, key } = result, added = 0, existing = false;
   const cached = await cache.loadTally(tally.id);

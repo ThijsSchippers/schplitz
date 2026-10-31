@@ -3,14 +3,16 @@ import { CATEGORIES } from "../categories.js";
 import { balance, dayNumber, openDisputes } from "../tally.js";
 import { unsharedCount } from "../app.js";
 import { hero, nameOf, othersLabel, payments, dayLabel } from "./format.js";
-import { Button, Icon, TopBar } from "./components.jsx";
+import { Button, Icon, TopBar, ICON_BUTTON } from "./components.jsx";
 import { C, S } from "./theme.js";
+
+const FULL_LEAN = 12;   // the bar leans all the way at 12× the "about even" amount (€60 by default)
 
 /** A bar that leans toward whoever is ahead: me on the left, the other person on the right. */
 function Lean({ tally }) {
   if (tally.members.length !== 2) return null;
   const mine = balance(tally)[tally.me.member];
-  const lean = Math.max(-1, Math.min(1, mine / (tally.aboutEven * 12)));   // full lean at 12× the "about even" amount
+  const lean = Math.max(-1, Math.min(1, mine / (tally.aboutEven * FULL_LEAN)));
   const other = tally.members.find(m => m.id !== tally.me.member).name;
   return (
     <div aria-hidden="true" style={{ marginTop: 14 }}>
@@ -38,7 +40,7 @@ export default function TallyView({ tally, onBack, onLog, onDetails, onShare, on
     <>
       <TopBar title={others} onBack={onBack}
         right={<button type="button" onClick={onDetails} aria-label="Details and exact amounts"
-          style={{ background: "none", border: "none", color: C.soft, cursor: "pointer", display: "flex", padding: 6 }}><Icon name="receipt_long" /></button>} />
+          style={{ ...ICON_BUTTON, color: C.soft }}><Icon name="receipt_long" /></button>} />
 
       {tally.v1 && !tally.local?.welcomeAnswered && (
         <section style={{ ...S.card, borderColor: C.accentBorder }}>
