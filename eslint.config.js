@@ -1,10 +1,18 @@
-// Linting for the v2 prototype (src/v2). The v1 app isn't covered yet.
+// Linting for Schplitz 2 (src/v2). The v1 app isn't covered yet.
 import globals from "globals";
+import react from "eslint-plugin-react";
+import reactHooks from "eslint-plugin-react-hooks";
 
 export default [
   {
-    files: ["src/v2/**/*.js"],
-    languageOptions: { ecmaVersion: 2024, sourceType: "module", globals: { ...globals.browser, ...globals.node } },
+    files: ["src/v2/**/*.{js,jsx}"],
+    plugins: { react, "react-hooks": reactHooks },
+    languageOptions: {
+      ecmaVersion: 2024, sourceType: "module",
+      parserOptions: { ecmaFeatures: { jsx: true } },
+      globals: { ...globals.browser, ...globals.node },
+    },
+    settings: { react: { version: "18.2" } },
     rules: {
       "no-unused-vars": ["error", { args: "after-used", argsIgnorePattern: "^_" }],
       "no-undef": "error",
@@ -16,6 +24,11 @@ export default [
       "require-await": "error",
       "no-promise-executor-return": "error",
       "consistent-return": "error",
+      "react/jsx-uses-vars": "error",
+      "react/jsx-key": "error",
+      "react/no-unknown-property": "error",
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "error",
     },
   },
   {

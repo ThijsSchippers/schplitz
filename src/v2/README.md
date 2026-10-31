@@ -1,16 +1,26 @@
-# Schplitz v2 — prototype modules
+# Schplitz v2
 
-The data model, link format and v1 conversion for Schplitz v2, without UI or storage.
+Schplitz 2 for pairs, served as a preview at `/v2/` next to Schplitz 1 (same site, so it can read v1 data).
 The design is in [`docs/v2.0.md`](../../docs/v2.0.md) and [`docs/v2.0-migration.md`](../../docs/v2.0-migration.md).
+
+```
+npm run dev      # then open http://localhost:5173/v2/
+npm run build    # builds Schplitz 1 (dist/index.html) and the preview (dist/v2/index.html)
+```
+
+## Modules
 
 | File | What it does |
 |---|---|
+| `app.js` | What the screens do, without React: start, join, open links, record payments, share, convert v1. Saves after every change. |
+| `cache.js` | The phone's cache (IndexedDB): tallies, keys (non-extractable), and phone-only state. Losing it costs convenience, never the tally. |
 | `tally.js` | The tally: writers, entries, summaries, balances, disputes, merging a link. |
 | `link.js` | Links: key derivation, the correction window, the size budget, encrypt/decrypt. |
 | `migrate.js` | Bringing in v1 tallies: device storage, old links, deterministic IDs, rates. |
 | `schema.js` | **Field reference** for entries, summaries and payloads, limits, validation, `SchplitzError`. |
 | `encoding.js` | Hex, base64url, deflate with a size cap, minor units, day numbers. |
-| `categories.js` | The category codes. Codes are permanent. |
+| `categories.js` | The category codes and their social units. Codes are permanent. |
+| `ui/` | The React screens. `App.jsx` holds the screen state and wires actions to `app.js`. `format.js` (copy, money, whose turn) and `numpad.js` (amount entry) are pure and unit-tested. `icons.js` holds Material Symbols path data (Apache-2.0, see `material-symbols-LICENSE.txt`). |
 
 ## Core rules
 
@@ -40,7 +50,7 @@ The design is in [`docs/v2.0.md`](../../docs/v2.0.md) and [`docs/v2.0-migration.
 ## Tests
 
 ```
-npm test -- src/v2      # tests
+npm test -- src/v2      # unit tests
 npm run lint            # ESLint, scoped to src/v2
 ```
 
@@ -49,5 +59,9 @@ npm run lint            # ESLint, scoped to src/v2
 | `test/v2.test.js` | Tally behaviour, links, the window, disputes. |
 | `test/migrate.test.js` | v1 conversion. Fixtures are produced with the real v1 code in `src/utils.js`. |
 | `test/hardening.test.js` | Validation, hostile links, concurrency, rounding, and the other fixes from the code review. |
+| `test/app.test.js` | The cache and the app layer: two phones from invite to dispute, currencies, converting v1 data. |
+| `test/ui-logic.test.js` | The numpad rules and the text on screen. |
 
 Each tally derives its key with 600,000 PBKDF2 iterations, so tests that create many tallies take a few seconds.
+
+**In a real browser**, `e2e/` drives the built preview with separate browser profiles as separate phones: invite, join, logging, review, *Not me*, edits, a wiped phone, and two converted v1 phones meeting. See the comment at the top of each script.

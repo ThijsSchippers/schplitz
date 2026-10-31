@@ -74,3 +74,6 @@ export const localDayNumber = (date = new Date()) =>
 /** Day number of a `YYYY-MM-DD` calendar date. */
 export const dayOfIsoDate = (iso) =>
   Math.floor(Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) / 86_400_000);
+
+/** `YYYY-MM-DD` of a day number (inverse of dayOfIsoDate). */
+export const isoOfDay = (day) => new Date(day * 86_400_000).toISOString().slice(0, 10);

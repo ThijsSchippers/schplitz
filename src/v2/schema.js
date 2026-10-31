@@ -71,7 +71,7 @@ export const FLAG_PROVISIONAL = 2;
 
 export class SchplitzError extends Error {
   /**
-   * @param {"invalid-input"|"not-allowed"|"not-found"|"not-a-link"|"unsupported-version"|"cannot-decrypt"|"invalid-payload"|"too-large"} code
+   * @param {"invalid-input"|"not-allowed"|"not-found"|"not-a-link"|"unsupported-version"|"cannot-decrypt"|"answer-mismatch"|"invalid-payload"|"too-large"} code
    *   Stable code for the UI to map to a message.
    */
   constructor(code, message) {
