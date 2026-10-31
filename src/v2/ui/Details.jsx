@@ -1,11 +1,11 @@
 // Details (docs/v2.0.md §9.7): the exact numbers, disputes, and changes.
 import { useState } from "react";
 import { CATEGORIES } from "../categories.js";
-import { allEntries, balance, dayNumber, freshStart, openDisputes, paymentState, whoseTurn, QUERY_REASONS } from "../tally.js";
+import { allEntries, balance, dayNumber, freshStart, openDisputes, paymentState, tallyName, whoseTurn, MAX_MEMBERS, QUERY_REASONS } from "../tally.js";
 import { decimalsOf } from "../encoding.js";
 import { minorOfText, textOfMinor } from "./numpad.js";
 import { money, nameOf, payments, dayLabel, QUERY_LABELS, QUERY_CHIPS } from "./format.js";
-import { Button, Chip, Icon, Sheet, TopBar } from "./components.jsx";
+import { Button, Chip, Field, Icon, Sheet, TopBar } from "./components.jsx";
 import { C, S } from "./theme.js";
 
 const refKey = (w, s) => `${w}:${s}`;
@@ -35,7 +35,8 @@ export default function Details({ tally, onBack, actions }) {
   const [expanded, setExpanded] = useState(null);
   const [asking, setAsking] = useState(null);
   const [confirm, setConfirm] = useState(null);
-  const [paidBack, setPaidBack] = useState(null);
+  const [paidBack, setPaidBack] = useState(null);     // { from, to, text }
+  const [naming, setNaming] = useState(null);          // { kind: "rename" | "add", text }
 
   // After "start fresh", converted v1 entries don't count, here or in the balance.
   const counted = freshStart(tally) ? list.filter(p => !p.legacy) : list;
@@ -44,7 +45,9 @@ export default function Details({ tally, onBack, actions }) {
   const describe = (p) => p ? `${CATEGORIES[p.k]?.name ?? "Payment"} · ${money(p.v, tally.currency)}` : "a payment";
 
   const turn = whoseTurn(tally);
-  const ahead = tally.members.find(m => m.id !== turn.member);
+  const mostAhead = [...tally.members].sort((a, b) => nets[b.id] - nets[a.id])[0];
+  const group = tally.members.length > 2;
+  const paidBackMinor = paidBack ? minorOfText(paidBack.text, decimalsOf(tally.currency)) : 0;
 
   return (
     <>
@@ -96,9 +99,11 @@ export default function Details({ tally, onBack, actions }) {
       ))}
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {!turn.aboutEven && tally.members.length === 2 && (
+        {!turn.aboutEven && (
           <Button variant="secondary" icon="payments" style={{ flex: 1 }}
-            onClick={() => setPaidBack({ text: textOfMinor(Math.abs(turn.net), decimalsOf(tally.currency)) })}>Record paid back</Button>
+            onClick={() => setPaidBack({ from: turn.member, to: mostAhead.id, text: textOfMinor(Math.min(Math.abs(turn.net), nets[mostAhead.id]), decimalsOf(tally.currency)) })}>
+            Record paid back
+          </Button>
         )}
         {sortable && <Button variant="secondary" icon="category" style={{ flex: 1 }} onClick={actions.sort}>Sort old entries</Button>}
       </div>
@@ -119,7 +124,7 @@ export default function Details({ tally, onBack, actions }) {
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ display: "block", fontSize: 14 }}>{CATEGORIES[p.k]?.name ?? "Something else"}</span>
                   <span style={{ display: "block", fontSize: 12, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {p.payer === me ? "You" : nameOf(tally, p.payer)} · {dayLabel(p.day, today)}{note ? ` · “${note}”` : ""}{disputedByMe.has(key) ? " · you weren't there" : ""}{questioned.has(key) ? " · question open" : ""}
+                    {p.payer === me ? "You" : nameOf(tally, p.payer)} · {dayLabel(p.day, today)}{group && p.p.length < tally.members.length ? ` · ${p.p.length} of ${tally.members.length}` : ""}{note ? ` · “${note}”` : ""}{disputedByMe.has(key) ? " · you weren't there" : ""}{questioned.has(key) ? " · question open" : ""}
                   </span>
                 </span>
                 <Amount tally={tally} p={p} />
@@ -147,6 +152,18 @@ export default function Details({ tally, onBack, actions }) {
         </p>
       ))}
 
+      <h2 style={S.sectionLabel}>This tally</h2>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {tally.members.length < MAX_MEMBERS && (
+          <Button variant="secondary" icon="person_add" style={{ flex: 1 }} onClick={() => setNaming({ kind: "add", text: "" })}>Add someone</Button>
+        )}
+        <Button variant="secondary" icon="edit" style={{ flex: 1 }} onClick={() => setNaming({ kind: "rename", text: tallyName(tally) ?? "" })}>
+          {tallyName(tally) ? "Rename" : "Give it a name"}
+        </Button>
+      </div>
+      <Button variant="secondary" icon="download" onClick={actions.fullCopy}>Send a full copy</Button>
+      <p style={S.muted}>For a new or wiped phone: a file with the complete history, including entries older than 30 days.</p>
+
       <Button variant="ghost" style={{ marginTop: 18 }} onClick={() => setConfirm({
         text: "Remove this tally from this phone? Your chat still has it: open the latest link and type the answer to bring it back.",
         action: "Remove", run: actions.forget,
@@ -170,14 +187,35 @@ export default function Details({ tally, onBack, actions }) {
       )}
 
       {paidBack && (
-        <Sheet title={`${nameOf(tally, turn.member)} paid ${ahead ? nameOf(tally, ahead.id) : ""} back`} onClose={() => setPaidBack(null)}>
-          <p style={S.muted}>Record money that changed hands outside Schplitz. It only shows up here, in Details.</p>
+        <Sheet title="Record paid back" onClose={() => setPaidBack(null)}>
+          <p style={S.muted}>Money that changed hands outside Schplitz. It only shows up here, in Details.</p>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 14 }}>
+            <select aria-label="Who paid" value={paidBack.from} onChange={e => setPaidBack(x => ({ ...x, from: e.target.value }))} style={{ ...S.input, width: "auto", flex: 1 }}>
+              {tally.members.map(m => <option key={m.id} value={m.id}>{m.id === me ? "You" : m.name}</option>)}
+            </select>
+            <span>paid back</span>
+            <select aria-label="Who received it" value={paidBack.to} onChange={e => setPaidBack(x => ({ ...x, to: e.target.value }))} style={{ ...S.input, width: "auto", flex: 1 }}>
+              {tally.members.map(m => <option key={m.id} value={m.id}>{m.id === me ? "you" : m.name}</option>)}
+            </select>
+          </div>
           <input inputMode="decimal" aria-label="Amount paid back" value={paidBack.text}
-            onChange={e => setPaidBack({ text: e.target.value.replace(",", ".").replace(/[^\d.]/g, "") })}
+            onChange={e => setPaidBack(x => ({ ...x, text: e.target.value.replace(",", ".").replace(/[^\d.]/g, "") }))}
             style={{ ...S.input, fontSize: 22, textAlign: "center" }} />
-          <Button disabled={minorOfText(paidBack.text, decimalsOf(tally.currency)) <= 0}
-            onClick={() => { actions.paidBack(turn.member, ahead.id, minorOfText(paidBack.text, decimalsOf(tally.currency))); setPaidBack(null); }}>
-            Record {money(minorOfText(paidBack.text, decimalsOf(tally.currency)), tally.currency)}
+          <Button disabled={paidBackMinor <= 0 || paidBack.from === paidBack.to}
+            onClick={() => { actions.paidBack(paidBack.from, paidBack.to, paidBackMinor); setPaidBack(null); }}>
+            Record {money(paidBackMinor, tally.currency)}
+          </Button>
+        </Sheet>
+      )}
+
+      {naming && (
+        <Sheet title={naming.kind === "add" ? "Add someone" : "Name this tally"} onClose={() => setNaming(null)}>
+          <Field label={naming.kind === "add" ? "Their name" : "Name"} value={naming.text} maxLength={50} autoFocus
+            placeholder={naming.kind === "add" ? "" : "Padel crew"} onChange={e => setNaming(x => ({ ...x, text: e.target.value }))}
+            hint={naming.kind === "add" ? "They join by opening any link from this tally and picking their name." : "Everyone in the tally sees it."} />
+          <Button disabled={naming.kind === "add" && !naming.text.trim()}
+            onClick={() => { (naming.kind === "add" ? actions.addPerson : actions.rename)(naming.text); setNaming(null); }}>
+            {naming.kind === "add" ? "Add" : naming.text.trim() ? "Save" : "Remove the name"}
           </Button>
         </Sheet>
       )}

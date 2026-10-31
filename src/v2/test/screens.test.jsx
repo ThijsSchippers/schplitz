@@ -86,3 +86,48 @@ describe("Schplitz 2 screens", () => {
     expect(document.activeElement).toBe(shareButton);
   }, 20_000);
 });
+
+describe("Schplitz 2 screens: groups", () => {
+  it("a group of three: who's here, who was there, standings, and a QR code", async () => {
+    const user = userEvent.setup();
+    render(<App cacheName={`screens-${crypto.randomUUID()}`} rateFor={rateFor} />);
+    await user.click(await screen.findByRole("button", { name: "Start a tally" }));
+    await user.type(screen.getByLabelText("Your name"), "Ana");
+    await user.type(screen.getByLabelText("Who's it with?"), "Ben");
+    await user.click(screen.getByRole("button", { name: "Add someone" }));
+    await user.type(screen.getByLabelText("Person 3"), "Cas");
+    await user.type(screen.getByLabelText("Name for the group (optional)"), "Padel crew");
+    await user.type(screen.getByLabelText("A question only your group can answer"), "Club?");
+    await user.type(screen.getByLabelText("Answer"), "smash");
+    await user.type(screen.getByLabelText("Answer again"), "smash");
+    await user.click(screen.getByRole("button", { name: "Start" }));
+    const invite = await screen.findByRole("dialog", { name: /Invite/ }, { timeout: 5000 });
+    await user.click(within(invite).getByRole("button", { name: "Close" }));
+    expect(screen.getByRole("heading", { name: "Padel crew" })).toBeInTheDocument();
+
+    // Only Ana and Ben had dinner: Ana pays 60, split two ways.
+    await user.click(screen.getByRole("button", { name: "I paid" }));
+    await user.click(screen.getByRole("button", { name: "Meals" }));
+    await user.click(screen.getByRole("button", { name: /Who was there/ }));
+    const who = screen.getByRole("dialog", { name: "Who was there?" });
+    await user.click(within(who).getByRole("button", { name: "Cas" }));
+    await user.click(within(who).getByRole("button", { name: "Done" }));
+    for (const k of ["6", "0"]) await user.click(screen.getByRole("button", { name: k }));
+    await user.click(screen.getByRole("button", { name: "Add meal" }));
+    const share = await screen.findByRole("dialog", { name: "Share with the group" });
+    await user.click(await within(share).findByRole("button", { name: "Show QR code" }));
+    expect(within(share).getByRole("img", { name: "QR code of the link" })).toBeInTheDocument();
+    await user.click(within(share).getByRole("button", { name: "Later" }));
+
+    expect(screen.getByText("Next one's on Ben")).toBeInTheDocument();
+    const everyone = screen.getByRole("heading", { name: "Everyone" }).nextElementSibling;
+    expect(within(everyone).getAllByRole("listitem").map(li => li.textContent)).toEqual([
+      expect.stringMatching(/^Ben/), expect.stringMatching(/^Casabout even$/), expect.stringMatching(/^You.*ahead$/),
+    ]);
+
+    // Ben isn't here tonight: it's Cas's turn among Ana and Cas.
+    await user.click(screen.getByRole("button", { name: "Ben" }));
+    expect(screen.getByText("Next one's on Cas")).toBeInTheDocument();
+    expect(screen.getByText("Of the people here, Cas is furthest behind.")).toBeInTheDocument();
+  }, 30_000);
+});

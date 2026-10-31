@@ -11,10 +11,11 @@ import { Button, Chip, Icon, Numpad, Sheet, Tiles, ICON_BUTTON } from "./compone
 import { C, S, FONT } from "./theme.js";
 
 /**
- * initial: for editing, { category, amount, currency, paidOn }.
- * onSubmit({ category, amount, currency, paidOn }) may be async; errors are shown by the caller.
+ * initial: for editing, { category, amount, currency, paidOn, participants }.
+ * defaultParticipants: who was there, preset for a new payment (groups: who's here today).
+ * onSubmit({ category, amount, currency, paidOn, participants }) may be async; errors are shown by the caller.
  */
-export default function LogPayment({ tally, initial, onSubmit, onCancel, rateFor }) {
+export default function LogPayment({ tally, initial, defaultParticipants, onSubmit, onCancel, rateFor }) {
   const loc = locale();
   const today = dayNumber();
   const editing = Boolean(initial);
@@ -26,6 +27,9 @@ export default function LogPayment({ tally, initial, onSubmit, onCancel, rateFor
   const [day, setDay] = useState(initial?.paidOn ?? today);
   const [pickDate, setPickDate] = useState(initial ? initial.paidOn < today - 1 : false);
   const [moreCurrencies, setMoreCurrencies] = useState(false);
+  const group = tally.members.length > 2;
+  const [participants, setParticipants] = useState(initial?.participants ?? defaultParticipants ?? tally.members.map(m => m.id));
+  const [choosingPeople, setChoosingPeople] = useState(false);
   const [preview, setPreview] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -50,15 +54,15 @@ export default function LogPayment({ tally, initial, onSubmit, onCancel, rateFor
   async function submit() {
     if (!canSubmit) return;
     setBusy(true);
-    try { await onSubmit({ category, amount: minor, currency, paidOn: day }); } finally { setBusy(false); }
+    try { await onSubmit({ category, amount: minor, currency, paidOn: day, participants }); } finally { setBusy(false); }
   }
 
   // Hardware keyboard: digits, separators, Backspace, Enter = Add, Escape = close.
   const latest = useRef({});
-  latest.current = { press, submit, onCancel, moreCurrencies };
+  latest.current = { press, submit, onCancel, sheetOpen: moreCurrencies || choosingPeople };
   useEffect(() => {
     const onKey = (e) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || latest.current.moreCurrencies) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || latest.current.sheetOpen) return;
       const k = keyFromKeyboard(e.key);
       if (k) { e.preventDefault(); latest.current.press(k); }
       else if (e.key === "Enter") { e.preventDefault(); latest.current.submit(); }
@@ -87,7 +91,12 @@ export default function LogPayment({ tally, initial, onSubmit, onCancel, rateFor
         <button type="button" onClick={onCancel} aria-label="Close" style={{ ...ICON_BUTTON, color: C.muted }}>
           <Icon name="close" />
         </button>
-        <h1 style={{ ...S.h2, flex: 1, textAlign: "center" }}>{editing ? "Change payment" : "I paid"}</h1>
+        <h1 style={{ ...S.h2, flex: 1, textAlign: group ? "left" : "center" }}>{editing ? (group ? "Change" : "Change payment") : "I paid"}</h1>
+        {group && (
+          <Chip on={false} onClick={() => setChoosingPeople(true)} aria-label={`Who was there: ${participants.length === tally.members.length ? "everyone" : `${participants.length} people`}`}>
+            <Icon name="group" size={15} /> {participants.length === tally.members.length ? "Everyone" : participants.length}
+          </Chip>
+        )}
         <label style={{ display: "flex", alignItems: "center", gap: 5, background: C.card, border: `1px solid ${C.cardBorder}`, borderRadius: 999, padding: "4px 10px", color: C.soft, fontSize: 13 }}>
           <Icon name="calendar_today" size={15} />
           <select value={pickDate ? "earlier" : String(today - day)} aria-label="Payment date"
@@ -122,6 +131,23 @@ export default function LogPayment({ tally, initial, onSubmit, onCancel, rateFor
         <Numpad onKey={press} separator={decimalSeparator(loc)} decimalsAllowed={decimals > 0} />
         <Button onClick={submit} disabled={!canSubmit}>{busy ? "Saving…" : editing ? "Save changes" : category === null ? "Pick a category" : addLabel(category)}</Button>
       </div>
+
+      {choosingPeople && (
+        <Sheet title="Who was there?" onClose={() => setChoosingPeople(false)}>
+          <p style={S.muted}>The payment is split between the people you pick. You can leave yourself out if you didn't have any.</p>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {tally.members.map(m => {
+              const on = participants.includes(m.id);
+              return (
+                <Chip key={m.id} on={on} onClick={() => setParticipants(p => (on ? (p.length > 1 ? p.filter(x => x !== m.id) : p) : [...p, m.id]))}>
+                  {m.id === tally.me.member ? "You" : m.name}
+                </Chip>
+              );
+            })}
+          </div>
+          <Button onClick={() => setChoosingPeople(false)}>Done</Button>
+        </Sheet>
+      )}
 
       {moreCurrencies && (
         <Sheet title="Currency" onClose={() => setMoreCurrencies(false)}>

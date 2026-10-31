@@ -20,6 +20,8 @@ npm run build    # builds Schplitz 1 (dist/index.html) and the preview (dist/v2/
 | `schema.js` | **Field reference** for entries, summaries and payloads, limits, validation, `SchplitzError`. |
 | `encoding.js` | Hex, base64url, deflate with a size cap, minor units, day numbers. |
 | `categories.js` | The category codes and their social units. Codes are permanent. |
+| `ui/environment.js` | Which kind of browser this is (in-app browser, WebKit) for the hints in docs §4.1. |
+| `ui/qr.js` | QR codes for the share sheet (qrcode-generator, MIT), rendered as one SVG path. |
 | `ui/` | The React screens. `App.jsx` holds the screen state and wires actions to `app.js`. `format.js` (copy, money, whose turn) and `numpad.js` (amount entry) are pure and unit-tested. `icons.js` holds Material Symbols path data (Apache-2.0, see `material-symbols-LICENSE.txt`). |
 
 ## Core rules
@@ -62,8 +64,9 @@ npm run lint            # ESLint, scoped to src/v2
 | `test/hardening.test.js` | Validation, hostile links, concurrency, rounding, and the other fixes from the code review. |
 | `test/app.test.js` | The cache and the app layer: two phones from invite to dispute, currencies, converting v1 data. |
 | `test/ui-logic.test.js` | The numpad rules and the text on screen. |
-| `test/screens.test.jsx` | The React screens in jsdom: starting, logging, whose turn, details, the keyboard, focus in sheets. |
+| `test/screens.test.jsx` | The React screens in jsdom: starting, logging, whose turn, details, the keyboard, focus in sheets, a group of three. |
+| `test/groups.test.js` | Groups (who's here, standings, names, adding people, new phones, "about even"), full copies, backups, browser hints, QR. |
 
 Each tally derives its key with 600,000 PBKDF2 iterations, so tests that create many tallies take a few seconds.
 
-**In a real browser**, `e2e/` drives the built preview with separate browser profiles as separate phones: invite, join, logging, review, *Not me*, edits, a wiped phone, two converted v1 phones meeting, and a link opened in a second tab. With a preview server running (`npm run build && npx vite preview --port 4173`), run `npm run e2e`.
+**In a real browser**, `e2e/` drives the built preview with separate browser profiles as separate phones: invite, join, logging, review, *Not me*, edits, a wiped phone, two converted v1 phones meeting, a link opened in a second tab, and a group of three with a full-copy file restoring a wiped phone. With a preview server running (`npm run build && npx vite preview --port 4173`), run `npm run e2e`.

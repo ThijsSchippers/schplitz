@@ -2,7 +2,7 @@
 // Pure functions, so they're tested without a browser.
 
 import { CATEGORIES, OTHER } from "../categories.js";
-import { whoseTurn, socialUnits, effectivePays, logOf, allEntries } from "../tally.js";
+import { whoseTurn, socialUnits, effectivePays, logOf, allEntries, balance, tallyName } from "../tally.js";
 import { decimalsOf } from "../encoding.js";
 
 export const locale = () => (typeof navigator !== "undefined" && navigator.language) || "en";
@@ -32,6 +32,9 @@ export function othersLabel(tally, loc = locale()) {
   return new Intl.ListFormat(loc, { style: "long", type: "conjunction" }).format(names);
 }
 
+/** The tally's title: its name if it has one, else the other people ("Liam and Noor"). */
+export const tallyTitle = (tally, loc = locale()) => tallyName(tally) ?? othersLabel(tally, loc);
+
 /** "about 2 coffees", or null when no category fits (docs §7). */
 export function socialAmount(tally, amount) {
   const u = socialUnits(tally, amount);
@@ -40,18 +43,30 @@ export function socialAmount(tally, amount) {
   return u.units === 1 ? `about ${c.one}` : `about ${u.units} ${c.many}`;
 }
 
-/** The big line on the tally screen. */
-export function hero(tally) {
-  const turn = whoseTurn(tally);
+/** "about 2 coffees", or "a bit"/"well" when no category fits. */
+const sizeOf = (tally, net) => socialAmount(tally, net) ?? (Math.abs(net) < 4 * tally.aboutEven ? "a bit" : "well");
+
+/** The big line on the tally screen. `present`: member IDs here today (default everyone). */
+export function hero(tally, present) {
+  const turn = whoseTurn(tally, present);
   if (turn.aboutEven) return { title: "You're about even", sub: "Whoever's buying next, enjoy.", member: null };
   const isMe = turn.member === tally.me.member;
   const name = nameOf(tally, turn.member);
-  const size = socialAmount(tally, turn.net) ?? (Math.abs(turn.net) < 4 * tally.aboutEven ? "a bit" : "well");
-  return {
-    title: isMe ? "Next one's on you" : `Next one's on ${name}`,
-    sub: isMe ? `You're ${size} behind.` : `${name} is ${size} behind.`,
-    member: turn.member,
-  };
+  const title = isMe ? "Next one's on you" : `Next one's on ${name}`;
+  // Not behind overall, only compared with the people here today.
+  if (turn.net > -tally.aboutEven)
+    return { title, sub: isMe ? "Of the people here, you're furthest behind." : `Of the people here, ${name} is furthest behind.`, member: turn.member };
+  const size = sizeOf(tally, turn.net);
+  return { title, sub: isMe ? `You're ${size} behind.` : `${name} is ${size} behind.`, member: turn.member };
+}
+
+/** Everyone's position for a group, furthest behind first: [{ id, name, isMe, text }]. */
+export function standings(tally) {
+  const nets = balance(tally);
+  return tally.members
+    .map(m => ({ id: m.id, name: m.name, isMe: m.id === tally.me.member, net: nets[m.id] }))
+    .sort((a, b) => a.net - b.net || (a.name < b.name ? -1 : 1))
+    .map(x => ({ ...x, text: Math.abs(x.net) < tally.aboutEven ? "about even" : `${sizeOf(tally, x.net)} ${x.net < 0 ? "behind" : "ahead"}` }));
 }
 
 const GOT = {

@@ -39,6 +39,8 @@
 //   k  new category                       x  [[writer, seq, value, previous category], …]
 // t = "fresh"    "start fresh": converted v1 entries stop counting
 //   on 1 or 0
+// t = "rename"   names the tally for everyone
+//   nm the name ("" clears it)
 // Unknown types (from a newer app version) are kept and ignored.
 //
 // Summary of one writer's whole log
@@ -47,6 +49,7 @@
 //   nl net per member from adjustments tied to converted v1 entries
 //   c  per category: [count, total value]
 //   f  latest "start fresh" choice: [on, day, seq]
+//   tn latest tally name: [name, day, seq]
 //
 // Payload (inside the encrypted part of a link)
 //   cur tally currency   ae "about even" threshold   m [[member ID, name], …]
@@ -183,6 +186,9 @@ export function checkEntry(e, memberIds, writerIds) {
     case "fresh":
       if (e.on !== 0 && e.on !== 1) bad(`${what}: fresh`);
       break;
+    case "rename":
+      if (typeof e.nm !== "string" || e.nm.length > MAX_NAME_LEN) bad(`${what}: name`);
+      break;
     default:
       // A newer app version's entry type: kept and ignored.
   }
@@ -201,6 +207,8 @@ function checkSummary(w, x, memberIds) {
   if (has(x, "f") && !(Array.isArray(x.f) && x.f.length === 3 && (x.f[0] === 0 || x.f[0] === 1) && isDay(x.f[1]) && isInt(x.f[2], 1, MAX_SEQ)))
     bad(`${what}: fresh start`);
   if (has(x, "fl") && !isInt(x.fl, 0, FLAG_LEGACY | FLAG_PROVISIONAL)) bad(`${what}: flags`);
+  if (has(x, "tn") && !(Array.isArray(x.tn) && x.tn.length === 3 && typeof x.tn[0] === "string" && x.tn[0].length <= MAX_NAME_LEN && isDay(x.tn[1]) && isInt(x.tn[2], 1, MAX_SEQ)))
+    bad(`${what}: tally name`);
 }
 
 /** Validates a decrypted payload. Throws SchplitzError("invalid-payload") on anything unexpected. */

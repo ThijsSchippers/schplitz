@@ -17,9 +17,10 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src/v2",
-    "e2e": "node e2e/two-phones.cjs && node e2e/more-paths.cjs && node e2e/two-tabs.cjs"
+    "e2e": "node e2e/two-phones.cjs && node e2e/more-paths.cjs && node e2e/two-tabs.cjs && node e2e/groups.cjs"
   },
   "dependencies": {
+    "qrcode-generator": "^1.4.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

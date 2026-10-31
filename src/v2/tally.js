@@ -188,19 +188,20 @@ export const paymentDay = (p) => p.pd ?? p.d;
 // to redo on every write.
 function foldNets(member, log) {
   const n = {}, nl = {}, c = {};
-  let f;
+  let f, tn;
   for (const e of log) {
     if (e.t === "back") addNets(n, { [e.fr]: e.v, [e.to]: -e.v });
     else if (e.t === "notme") addNets(e.lg ? nl : n, e.n);
     else if (e.t === "resolve" && e.n) addNets(e.lg ? nl : n, e.n, -1);   // the payer takes over the adjustment
     else if (e.t === "recat") for (const [, , v, from] of e.x) { addCategory(c, from, -1, -v); addCategory(c, e.k, 1, v); }
     else if (e.t === "fresh") f = [e.on, e.d, e.s];
+    else if (e.t === "rename") tn = [e.nm, e.d, e.s];
   }
   for (const p of effectivePays(log).values()) {
     addNets(n, payEffect(member, p.v, p.p));
     addCategory(c, p.k, 1, p.v);
   }
-  return { n, c, ...(Object.keys(nl).length ? { nl } : {}), ...(f ? { f } : {}) };
+  return { n, c, ...(Object.keys(nl).length ? { nl } : {}), ...(f ? { f } : {}), ...(tn ? { tn } : {}) };
 }
 
 /** Full summary of a complete log, including the hash chain. */
@@ -406,6 +407,27 @@ export const acceptDispute = (tally, ref, fix = {}, at) => queued(tally, () => d
 export const keepAsIs = (tally, ref, at) => queued(tally, () => doKeepAsIs(tally, ref, at));
 /** "Start fresh" (migration doc, step 2): converted v1 entries stop counting, or count again. */
 export const setFreshStart = (tally, on, at) => queued(tally, () => append(tally, { t: "fresh", on: on ? 1 : 0 }, at));
+/** Names the tally for everyone; an empty name clears it. */
+export const renameTally = (tally, name, at) => queued(tally, () => {
+  const nm = String(name ?? "").trim();
+  if (nm) checkName(nm);
+  return append(tally, { t: "rename", nm }, at);
+});
+
+/**
+ * Adds someone to the tally. Synchronous: the member list travels in every link and
+ * phones combine their lists, so no entry is needed. Save the tally afterwards.
+ */
+export function addMember(tally, rawName) {
+  checkName(rawName);
+  const name = rawName.trim();
+  if (tally.members.length >= MAX_MEMBERS) throw invalid(`A tally has at most ${MAX_MEMBERS} members`);
+  if (tally.members.some(m => m.name.toLowerCase() === name.toLowerCase())) throw invalid(`${name} is already in this tally`);
+  const member = { id: randomHex(4), name };
+  tally.members.push(member);
+  return member;
+}
+
 /** Sorting old entries (migration doc, step 2b): only this member's own converted v1 entries. Returns null if nothing changed. */
 export const recategorize = (tally, refs, category, at) => queued(tally, () => doRecategorize(tally, refs, category, at));
 
@@ -423,16 +445,24 @@ export function categoryOf(tally, w, s) {
   return k;
 }
 
-/** Whether "start fresh" is on: the latest choice by anyone wins (by day, then writer, then seq). */
-export function freshStart(tally) {
+// A tally-wide choice anyone can make ("start fresh", the tally's name): each writer's
+// summary carries its latest [value, day, seq]; across writers the latest wins, by day,
+// then writer ID, then seq, so every phone agrees.
+function latestChoice(tally, field) {
   let latest = null;
   for (const [w, { summary }] of Object.entries(tally.writers)) {
-    if (!summary.f) continue;
-    const [on, d, s] = summary.f;
-    if (!latest || d > latest.d || (d === latest.d && (w > latest.w || (w === latest.w && s > latest.s)))) latest = { on, d, w, s };
+    if (!summary[field]) continue;
+    const [value, d, s] = summary[field];
+    if (!latest || d > latest.d || (d === latest.d && (w > latest.w || (w === latest.w && s > latest.s)))) latest = { value, d, w, s };
   }
-  return Boolean(latest?.on);
+  return latest;
 }
+
+/** Whether "start fresh" is on. */
+export const freshStart = (tally) => Boolean(latestChoice(tally, "f")?.value);
+
+/** The tally's name ("Padel crew"), or null when nobody named it. */
+export const tallyName = (tally) => latestChoice(tally, "tn")?.value || null;
 
 /** Net position per member in minor units: positive is ahead, negative is behind. Sums to zero. */
 export function balance(tally) {
@@ -446,13 +476,21 @@ export function balance(tally) {
   return nets;
 }
 
-/** Whose turn it is among the people present: the one furthest behind. */
+/**
+ * Whose turn it is among the people present: the one furthest behind.
+ * aboutEven: everyone present is within `aboutEven` (€5) of the middle, i.e. the gap
+ * between the furthest ahead and the furthest behind is under twice that. For a pair
+ * this is exactly "less than €5 behind"; for a group it compares the people present
+ * with each other, not with the whole group.
+ */
 export function whoseTurn(tally, present = tally.members.map(m => m.id)) {
   const members = memberSet(tally);
   if (!present.length || present.some(id => !members.has(id))) throw invalid("Present must be members of the tally");
   const nets = balance(tally);
-  const [member, net] = present.map(id => [id, nets[id]]).sort((a, b) => a[1] - b[1] || (a[0] < b[0] ? -1 : 1))[0];
-  return { member, net, aboutEven: Math.abs(net) < tally.aboutEven };
+  const ranked = present.map(id => [id, nets[id]]).sort((a, b) => a[1] - b[1] || (a[0] < b[0] ? -1 : 1));
+  const [member, net] = ranked[0];
+  const spread = ranked.at(-1)[1] - net;
+  return { member, net, aboutEven: spread < 2 * tally.aboutEven };
 }
 
 /** Per category: [number of payments, total value], over everyone's history. */
@@ -482,7 +520,7 @@ export function socialUnits(tally, amount) {
 
 // ─── combining what a link brings ────────────────────────────────────────────
 
-const summaryFrom = ({ s, h, n, nl, c, f }) => ({ s, h, n, c, ...(nl ? { nl } : {}), ...(f ? { f } : {}) });
+const summaryFrom = ({ s, h, n, nl, c, f, tn }) => ({ s, h, n, c, ...(nl ? { nl } : {}), ...(f ? { f } : {}), ...(tn ? { tn } : {}) });
 const v1Ids = (entries) => new Set(entries.map(e => e.l).filter(Boolean));
 
 /**
@@ -501,8 +539,14 @@ export function mergePayload(tally, payload) {
   if (tally.members.length + newMembers.length > MAX_MEMBERS) throw new SchplitzError("invalid-payload", "Too many members");
   for (const [id, name] of newMembers) tally.members.push({ id, name });
 
-  const report = { newEntries: [], involvingMe: [], conflicts: [], replaced: [], review: [] };
+  const report = { newEntries: [], involvingMe: [], conflicts: [], replaced: [], review: [], newPhones: [] };
   const skip = new Set();
+  // Someone writing from a new writer while an earlier phone of theirs has history: a new
+  // or wiped phone. Their balance is restored by any link; older line items need a full copy.
+  const hasHistory = (member) => Object.values(tally.writers).some(x => x.member === member && !x.legacy && x.summary.s > 0);
+  for (const [w, x] of Object.entries(payload.w))
+    if (!tally.writers[w] && !(x.fl & FLAG_LEGACY) && x.m !== tally.me.member && hasHistory(x.m) && !report.newPhones.includes(x.m))
+      report.newPhones.push(x.m);
   const incomingV1Ids = (w) => new Set(payload.pl?.[w] ?? v1Ids(payload.e.filter(e => e.w === w)));
   for (const [w, x] of Object.entries(payload.w)) {
     const incoming = summaryFrom(x);

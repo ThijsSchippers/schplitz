@@ -1,14 +1,28 @@
 // Home, starting a tally, joining from a link, and bringing in a Schplitz 1 tally.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { normalizeAnswer } from "../../utils.js";
 import { unsharedCount } from "../app.js";
-import { hero, othersLabel, errorText } from "./format.js";
-import { Button, Field, Icon, TopBar } from "./components.jsx";
+import { hero, tallyTitle, errorText } from "./format.js";
+import { Button, Field, Icon, TopBar, ICON_BUTTON } from "./components.jsx";
+import { MAX_MEMBERS } from "../tally.js";
+import { FLAG_LEGACY } from "../schema.js";
 import { C, S } from "./theme.js";
 
 const ANSWER_HINT = "Capitals and spaces don't matter.";
 
-export function Home({ tallies, v1, onOpen, onStart, onConvert }) {
+/** Shown in an app's built-in browser, whose storage is separate from the phone's browser (docs §4.1). */
+export function InAppHint({ app, onCopy }) {
+  return (
+    <section role="note" style={{ ...S.card, borderColor: C.other }}>
+      <p style={{ margin: 0, fontSize: 14 }}>You're in {app ? `${app}'s` : "an app's"} built-in browser.</p>
+      <p style={{ ...S.muted, marginTop: 4 }}>Open this page in your phone's browser so it remembers your tally. Your balance is safe either way: it's in the link.</p>
+      <Button variant="secondary" style={{ marginTop: 10 }} onClick={onCopy}>Copy this page's link</Button>
+    </section>
+  );
+}
+
+export function Home({ tallies, v1, onOpen, onStart, onConvert, onOpenFile, onInstall }) {
+  const fileInput = useRef(null);
   return (
     <>
       <header style={{ ...S.row, minHeight: 44 }}>
@@ -30,7 +44,7 @@ export function Home({ tallies, v1, onOpen, onStart, onConvert }) {
           <button key={t.id} type="button" onClick={() => onOpen(t.id)}
             style={{ ...S.card, color: C.text, textAlign: "left", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, fontFamily: "inherit" }}>
             <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: "block", fontSize: 16, fontWeight: 600 }}>{othersLabel(t)}</span>
+              <span style={{ display: "block", fontSize: 16, fontWeight: 600 }}>{tallyTitle(t)}</span>
               <span style={{ display: "block", fontSize: 13, color: C.soft, marginTop: 3 }}>{h.title}{unshared ? ` · ${unshared} not shared yet` : ""}</span>
             </span>
             <Icon name="chevron_right" style={{ color: C.muted }} />
@@ -42,9 +56,13 @@ export function Home({ tallies, v1, onOpen, onStart, onConvert }) {
         <p style={{ ...S.muted, fontSize: 15, margin: "24px 4px 8px" }}>Keep track of who's ahead with a friend, so you know who covers next time. No accounts, no server.</p>
       )}
       <Button icon="add" onClick={onStart}>Start a tally</Button>
+      <Button variant="ghost" icon="upload_file" onClick={() => fileInput.current?.click()}>Open a full copy</Button>
+      <input ref={fileInput} type="file" accept=".schplitz,text/plain" aria-label="Full copy file" hidden
+        onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onOpenFile(f); }} />
       {v1?.converted && (
         <Button variant="ghost" onClick={onConvert}>Bring in Schplitz 1 data again</Button>
       )}
+      {onInstall && <Button variant="ghost" icon="mobile_arrow_down" onClick={onInstall}>Install Schplitz</Button>}
       <p style={{ ...S.muted, fontSize: 12, marginTop: 8 }}>
         Your tallies live in your chats: every link holds the balance. This phone only remembers them so you don't have to type the answer each time.
       </p>
@@ -62,22 +80,43 @@ function AnswerFields({ answer, setAnswer, confirm, setConfirm }) {
 }
 
 export function Start({ onBack, onCreate }) {
-  const [form, setForm] = useState({ myName: "", friendName: "", question: "", answer: "", confirm: "" });
+  const [form, setForm] = useState({ myName: "", friends: [""], name: "", question: "", answer: "", confirm: "" });
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
-  const ready = form.myName.trim() && form.friendName.trim() && form.myName.trim() !== form.friendName.trim()
-    && form.question.trim() && normalizeAnswer(form.answer) && normalizeAnswer(form.answer) === normalizeAnswer(form.confirm);
+  const setFriend = (i, value) => setForm(f => ({ ...f, friends: f.friends.map((x, j) => (j === i ? value : x)) }));
+  const names = [form.myName, ...form.friends].map(n => n.trim());
+  const distinct = new Set(names.map(n => n.toLowerCase())).size === names.length;
+  const ready = names.every(Boolean) && distinct && form.question.trim()
+    && normalizeAnswer(form.answer) && normalizeAnswer(form.answer) === normalizeAnswer(form.confirm);
   async function submit() {
     setBusy(true);
-    try { await onCreate({ myName: form.myName.trim(), friendName: form.friendName.trim(), question: form.question.trim(), answer: form.answer }); }
-    finally { setBusy(false); }
+    try {
+      await onCreate({ myName: names[0], friendNames: names.slice(1), name: form.name.trim(), question: form.question.trim(), answer: form.answer });
+    } finally { setBusy(false); }
   }
   return (
     <>
       <TopBar title="Start a tally" onBack={onBack} />
       <Field label="Your name" value={form.myName} onChange={set("myName")} maxLength={50} autoComplete="given-name" />
-      <Field label="Who's it with?" value={form.friendName} onChange={set("friendName")} maxLength={50} />
-      <Field label="A question only you two can answer" value={form.question} onChange={set("question")} maxLength={200}
+      {form.friends.map((friend, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "flex-end", gap: 6 }}>
+          <div style={{ flex: 1 }}>
+            <Field label={i === 0 ? "Who's it with?" : `Person ${i + 2}`} value={friend} onChange={e => setFriend(i, e.target.value)} maxLength={50} />
+          </div>
+          {i > 0 && (
+            <button type="button" aria-label={`Remove person ${i + 2}`} onClick={() => setForm(f => ({ ...f, friends: f.friends.filter((_, j) => j !== i) }))}
+              style={{ ...ICON_BUTTON, color: C.muted, margin: 0, marginBottom: 4 }}><Icon name="close" /></button>
+          )}
+        </div>
+      ))}
+      {form.friends.length < MAX_MEMBERS - 1 && (
+        <Button variant="ghost" icon="add" onClick={() => setForm(f => ({ ...f, friends: [...f.friends, ""] }))}>Add someone</Button>
+      )}
+      {!distinct && names.every(Boolean) && <p role="alert" style={{ color: C.danger, fontSize: 13, margin: 0 }}>Everyone needs a different name.</p>}
+      {form.friends.length > 1 && (
+        <Field label="Name for the group (optional)" value={form.name} onChange={set("name")} maxLength={50} placeholder="Padel crew" />
+      )}
+      <Field label={form.friends.length > 1 ? "A question only your group can answer" : "A question only you two can answer"} value={form.question} onChange={set("question")} maxLength={200}
         placeholder="Where did we first meet?" hint="Anyone who sees a link can read the question, so keep it vague." />
       <AnswerFields answer={form.answer} setAnswer={v => setForm(f => ({ ...f, answer: v }))} confirm={form.confirm} setConfirm={v => setForm(f => ({ ...f, confirm: v }))} />
       <Button disabled={!ready || busy} onClick={submit}>{busy ? "Setting up…" : "Start"}</Button>
@@ -117,9 +156,16 @@ export function Join({ header, onBack, onUnlock, onJoin }) {
         <p style={S.muted}>You type the answer once on this phone; after that, links open straight away.</p>
       </>) : (<>
         <h2 style={S.h2}>Which one are you?</h2>
-        {unlocked.payload.m.map(([id, name]) => (
-          <Button key={id} variant="secondary" disabled={busy} onClick={() => join(id)}>{name}</Button>
-        ))}
+        {unlocked.payload.m.map(([id, name]) => {
+          // A name that already has history was picked on another phone: fine if it's yours (a new phone).
+          const taken = Object.values(unlocked.payload.w).some(x => x.m === id && !(x.fl & FLAG_LEGACY) && x.s > 0);
+          return (
+            <div key={id}>
+              <Button variant="secondary" disabled={busy} onClick={() => join(id)}>{name}</Button>
+              {taken && <p style={{ ...S.muted, fontSize: 12, margin: "4px 4px 0" }}>{name} already uses Schplitz on another phone. Only pick this if it's you.</p>}
+            </div>
+          );
+        })}
         {error && <p role="alert" style={{ color: C.danger, fontSize: 14, margin: 0 }}>{error}</p>}
       </>)}
     </>

@@ -2,8 +2,10 @@
 import { useEffect, useState } from "react";
 import { CATEGORIES, TILE_ORDER } from "../categories.js";
 import { usualAmount, QUERY_REASONS } from "../tally.js";
-import { prepareShare } from "../app.js";
-import { money, nameOf, othersLabel, payments, shareMessage, inviteMessage, QUERY_CHIPS } from "./format.js";
+import { prepareShare, prepareFullCopy, fullCopyFile } from "../app.js";
+import { LINK_BUDGET } from "../link.js";
+import { money, nameOf, othersLabel, tallyTitle, payments, shareMessage, inviteMessage, QUERY_CHIPS } from "./format.js";
+import { qrPath } from "./qr.js";
 import { Button, Chip, Icon, Sheet } from "./components.jsx";
 import { C, S } from "./theme.js";
 
@@ -16,6 +18,8 @@ export function ShareSheet({ tally, cryptoKey, origin, request, onShared, onClos
   const [link, setLink] = useState(null);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [showQr, setShowQr] = useState(false);
+  const qr = link && showQr ? qrPath(link.url) : null;
   const text = request.message ?? (request.invite ? inviteMessage(tally) : shareMessage(tally, request.lastCategory));
   const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
 
@@ -42,7 +46,7 @@ export function ShareSheet({ tally, cryptoKey, origin, request, onShared, onClos
   }
 
   return (
-    <Sheet title={request.invite ? `Invite ${othersLabel(tally)}` : `Share with ${othersLabel(tally)}`} onClose={onClose}>
+    <Sheet title={request.invite ? `Invite ${othersLabel(tally)}` : `Share with ${tally.members.length > 2 ? "the group" : othersLabel(tally)}`} onClose={onClose}>
       <p style={{ ...S.muted, fontSize: 14, color: C.soft }}>“{text}”</p>
       {link?.full && <p style={S.muted}>This first link includes your old history, so it's longer than usual.</p>}
       {canShare && <Button icon="share" disabled={!link} onClick={share}>{link ? "Share" : "Preparing…"}</Button>}
@@ -51,6 +55,18 @@ export function ShareSheet({ tally, cryptoKey, origin, request, onShared, onClos
         <textarea readOnly aria-label="Link" value={link.url} onFocus={e => e.target.select()}
           style={{ ...S.input, fontSize: 12, minHeight: 70, resize: "none", color: C.muted }} />
       )}
+      {link && qrPath(link.url) && (
+        <Button variant="ghost" icon="qr_code_2" aria-expanded={showQr} onClick={() => setShowQr(v => !v)}>{showQr ? "Hide QR code" : "Show QR code"}</Button>
+      )}
+      {qr && (
+        <figure style={{ margin: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+          <svg role="img" aria-label="QR code of the link" viewBox={`0 0 ${qr.size} ${qr.size}`} shapeRendering="crispEdges"
+            style={{ width: "min(100%, 300px)", background: "#fff", borderRadius: 8 }}>
+            <path d={qr.path} fill="#000" />
+          </svg>
+          <figcaption style={S.muted}>Point the other phone's camera at this.</figcaption>
+        </figure>
+      )}
       {error && <p role="alert" style={{ color: C.danger, fontSize: 13, margin: 0 }}>Couldn't share. Copy the link instead.</p>}
       {!request.invite && <Button variant="ghost" onClick={onClose}>Later</Button>}
     </Sheet>
@@ -58,7 +74,7 @@ export function ShareSheet({ tally, cryptoKey, origin, request, onShared, onClos
 }
 
 /** What arrived in a link: new payments that include me, and v1 differences (docs §3.5, migration step 4). */
-export function Review({ tally, report, onNotMe, onAsk, onClose }) {
+export function Review({ tally, report, onNotMe, onAsk, onFullCopy, onClose }) {
   const [done, setDone] = useState(new Set());
   const [asking, setAsking] = useState(null);
   const [acted, setActed] = useState(false);   // raised a "Not me" or question: offer to share afterwards
@@ -105,6 +121,13 @@ export function Review({ tally, report, onNotMe, onAsk, onClose }) {
       {report.review.map(r => r.theyMiss.length > 0 && (
         <p key={r.writer} style={S.muted}>{othersLabel(tally)}'s phone didn't have {r.theyMiss.length} of your old entries. They're kept.</p>
       ))}
+      {report.newPhones.map(m => (
+        <section key={m} style={{ ...S.card, background: C.field }}>
+          <p style={{ margin: 0, fontSize: 14 }}>{nameOf(tally, m)} is using a new phone.</p>
+          <p style={{ ...S.muted, marginTop: 4 }}>Their balance is already restored. Send a full copy so they have the older history too.</p>
+          <Button variant="secondary" icon="download" style={{ marginTop: 10 }} onClick={onFullCopy}>Send a full copy</Button>
+        </section>
+      ))}
       {report.conflicts.length > 0 && (
         <p style={{ ...S.muted, color: C.danger }}>Something in this link doesn't match what this phone has. Ask {othersLabel(tally)} to share again; if it keeps happening, exchange full copies.</p>
       )}
@@ -148,6 +171,59 @@ export function SortOld({ tally, onSort, onClose }) {
         );
       })}
       <Button onClick={onClose}>Done</Button>
+    </Sheet>
+  );
+}
+
+/**
+ * A full copy as a file (docs §3.7): for a new or wiped phone ("send"), or as a backup
+ * in Files ("backup"). The file holds the link, so opening it is opening the link.
+ * onDone() after the file was shared or downloaded.
+ */
+export function FullCopySheet({ tally, cryptoKey, origin, mode, onDone, onClose }) {
+  const [file, setFile] = useState(null);
+  const [link, setLink] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    prepareFullCopy(tally, cryptoKey, { origin }).then(l => {
+      if (cancelled) return;
+      setLink(l);
+      setFile(fullCopyFile(tallyTitle(tally), l.url));
+    }, e => { if (!cancelled) setError(e); });
+    return () => { cancelled = true; };
+  }, [tally, cryptoKey, origin]);
+
+  const canShareFile = Boolean(file) && typeof navigator.canShare === "function" && navigator.canShare({ files: [file] });
+
+  async function shareFile() {
+    try { await navigator.share({ files: [file], title: "Schplitz full copy" }); onDone(); }
+    catch (err) { if (err?.name !== "AbortError") setError(err); }
+  }
+  function download() {
+    const url = URL.createObjectURL(file);
+    const a = Object.assign(document.createElement("a"), { href: url, download: file.name });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    onDone();
+  }
+
+  return (
+    <Sheet title={mode === "backup" ? "Save a backup" : "Send a full copy"} onClose={onClose}>
+      <p style={{ ...S.muted, fontSize: 14 }}>
+        {mode === "backup"
+          ? "Save it in Files, ideally in iCloud Drive. To restore: open Schplitz, tap “Open a full copy”, and type the answer."
+          : `Send it to whoever needs the complete history. They open Schplitz, tap “Open a full copy”, and type the answer.`}
+      </p>
+      {canShareFile && <Button icon="share" onClick={shareFile}>Share the file</Button>}
+      <Button variant={canShareFile ? "secondary" : "primary"} icon="download" disabled={!file} onClick={download}>{file ? "Download the file" : "Preparing…"}</Button>
+      {link && link.length <= LINK_BUDGET && (
+        <p style={S.muted}>It's small enough to send as a normal link too: any link restores the balance and the last 30 days.</p>
+      )}
+      {error && <p role="alert" style={{ color: C.danger, fontSize: 13, margin: 0 }}>Couldn't prepare the file. Please try again.</p>}
     </Sheet>
   );
 }

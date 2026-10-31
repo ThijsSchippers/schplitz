@@ -6,16 +6,18 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { openCache, requestPersistence } from "../cache.js";
 import {
   save, startTally, openLink, unlockLink, completeJoin, recordPayment, markShared, v1Status, convertDeviceV1, valueInTallyCurrency,
+  addPerson, linkFromFile, backupDue, markBackedUp,
 } from "../app.js";
-import { editPayment, voidPayment, notMe, askAbout, acceptDispute, keepAsIs, addPaidBack, setFreshStart, recategorize, paymentState } from "../tally.js";
+import { editPayment, voidPayment, notMe, askAbout, acceptDispute, keepAsIs, addPaidBack, setFreshStart, recategorize, renameTally, paymentState } from "../tally.js";
 import { defaultRate } from "../migrate.js";
 import { errorText, hero, nameOf } from "./format.js";
 import { Toast } from "./components.jsx";
-import { Home, Start, Join, ConvertV1 } from "./Onboarding.jsx";
+import { Home, Start, Join, ConvertV1, InAppHint } from "./Onboarding.jsx";
 import TallyView from "./TallyView.jsx";
 import LogPayment from "./LogPayment.jsx";
 import Details from "./Details.jsx";
-import { ShareSheet, Review, SortOld } from "./Sheets.jsx";
+import { ShareSheet, Review, SortOld, FullCopySheet } from "./Sheets.jsx";
+import { browserKind } from "./environment.js";
 import { S } from "./theme.js";
 
 const TOAST_MS = 3200;
@@ -41,6 +43,8 @@ function takeLinkFromAddressBar() {
 const needsReview = (report) =>
   report.involvingMe.length > 0 || report.replaced.length > 0 || report.conflicts.length > 0 || report.review.some(r => r.theyMiss.length > 0);
 
+const BROWSER = browserKind();
+
 export default function App({ rateFor = defaultRate, cacheName }) {
   const [cache, setCache] = useState(null);
   const [tallies, setTallies] = useState([]);
@@ -49,7 +53,10 @@ export default function App({ rateFor = defaultRate, cacheName }) {
   const [current, setCurrent] = useState(null);           // { tally, key }: the open tally
   const [, rerender] = useReducer(x => x + 1, 0);
   const [toast, setToast] = useState(null);
-  const [sheet, setSheet] = useState(null);               // { kind: "share" | "review" | "sort", ... }
+  const [sheet, setSheet] = useState(null);               // { kind: "share" | "review" | "sort" | "fullCopy", ... }
+  const [present, setPresent] = useState([]);             // groups: who's here today (member IDs)
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const lastLink = useRef(null);                          // the link this page was opened with, for the in-app hint
   const toastTimer = useRef();
   const currentRef = useRef(null);
   currentRef.current = current;
@@ -67,11 +74,13 @@ export default function App({ rateFor = defaultRate, cacheName }) {
 
   const showTally = useCallback((tally, key, nextSheet = null) => {
     setCurrent({ tally, key });
+    setPresent(tally.members.map(m => m.id));
     setSheet(nextSheet);
     setView({ name: "tally" });
   }, []);
 
   const handleLink = useCallback(async (c, url) => {
+    lastLink.current = url;
     try {
       const r = await openLink(c, url);
       if (r.kind === "join") { setCurrent(null); setSheet(null); setView({ name: "join", url, header: r.header }); return; }
@@ -116,6 +125,15 @@ export default function App({ rateFor = defaultRate, cacheName }) {
     return () => { alive = false; cleanups.forEach(f => f()); };
   }, []);   // eslint-disable-line react-hooks/exhaustive-deps -- runs once; handlers read state through refs
 
+  // "Install Schplitz": Android and desktop browsers offer it; iPhones never fire this (docs §4.1).
+  useEffect(() => {
+    const onPrompt = (e) => { e.preventDefault(); setInstallPrompt(e); };
+    const onInstalled = () => setInstallPrompt(null);
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => { window.removeEventListener("beforeinstallprompt", onPrompt); window.removeEventListener("appinstalled", onInstalled); };
+  }, []);
+
   // ─── changes to the open tally ─────────────────────────────────────────────
 
   /** Runs a change on the open tally, saves it, and re-renders. Errors become a toast. */
@@ -147,7 +165,7 @@ export default function App({ rateFor = defaultRate, cacheName }) {
 
   async function createTally(form) {
     try {
-      const { tally, key } = await startTally(cache, { ...form, friendNames: [form.friendName] });
+      const { tally, key } = await startTally(cache, form);
       showTally(tally, key, { kind: "share", request: { invite: true } });
     } catch (err) { flash(errorText(err), true); }
   }
@@ -156,6 +174,21 @@ export default function App({ rateFor = defaultRate, cacheName }) {
     const { tally, returning } = await completeJoin(cache, unlocked, memberId);
     showTally(tally, unlocked.key);
     flash(returning ? "Welcome back. Your balance is restored from this link." : "You're in");
+  }
+
+  async function openFile(file) {
+    try { await handleLink(cache, await linkFromFile(file)); } catch (err) { flash(errorText(err), true); }
+  }
+
+  async function install() {
+    installPrompt.prompt();
+    await installPrompt.userChoice.catch(() => null);
+    setInstallPrompt(null);
+  }
+
+  async function copyCurrentLink() {
+    try { await navigator.clipboard.writeText(lastLink.current ?? location.href); flash("Link copied. Paste it in your browser."); }
+    catch { flash("Couldn't copy. Open the link from your chat in your browser instead.", true); }
   }
 
   async function convertV1(answer) {
@@ -188,7 +221,7 @@ export default function App({ rateFor = defaultRate, cacheName }) {
       const day = edit.pd ?? edit.d;
       const moneyChanged = fields.amount !== edit.a || fields.currency !== edit.c || fields.paidOn !== day;
       const value = moneyChanged ? (await valueInTallyCurrency(tally, fields.amount, fields.currency, fields.paidOn, rateFor)).value : edit.v;
-      const changes = { k: fields.category, a: fields.amount, c: fields.currency, v: value, ...(fields.paidOn !== day ? { pd: fields.paidOn } : {}) };
+      const changes = { k: fields.category, a: fields.amount, c: fields.currency, v: value, p: fields.participants, ...(fields.paidOn !== day ? { pd: fields.paidOn } : {}) };
       if (dispute) await acceptDispute(tally, [dispute.w, dispute.s], changes);
       else await editPayment(tally, edit.s, changes);
       await save(cache, tally);
@@ -214,6 +247,12 @@ export default function App({ rateFor = defaultRate, cacheName }) {
     },
     paidBack: (from, to, value) => change(t => addPaidBack(t, { from, to, value }), { ok: "Recorded", share: {} }),
     sort: () => setSheet({ kind: "sort" }),
+    addPerson: async (name) => {
+      await change(t => addPerson(cache, t, name), { ok: `Added ${name.trim()}`, share: { message: `I added ${name.trim()} to our tally` } });
+      setPresent(currentRef.current.tally.members.map(m => m.id));
+    },
+    rename: (name) => change(t => renameTally(t, name), { ok: "Saved", share: {} }),
+    fullCopy: () => setSheet({ kind: "fullCopy", mode: "send" }),
     forget: async () => { await cache.forgetTally(current.tally.id); await goHome(); flash("Removed from this phone"); },
   };
 
@@ -222,7 +261,8 @@ export default function App({ rateFor = defaultRate, cacheName }) {
   let screen;
   switch (view.name) {
     case "home":
-      screen = <Home tallies={tallies} v1={v1} onOpen={openTally} onStart={() => setView({ name: "start" })} onConvert={() => setView({ name: "convert" })} />;
+      screen = <Home tallies={tallies} v1={v1} onOpen={openTally} onStart={() => setView({ name: "start" })} onConvert={() => setView({ name: "convert" })}
+        onOpenFile={openFile} onInstall={installPrompt && !BROWSER.appleWebKit ? install : null} />;
       break;
     case "start":
       screen = <Start onBack={goHome} onCreate={createTally} />;
@@ -235,15 +275,17 @@ export default function App({ rateFor = defaultRate, cacheName }) {
       break;
     case "tally":
       screen = current && (
-        <TallyView tally={current.tally} onBack={goHome} onLog={() => setView({ name: "log" })} onDetails={() => setView({ name: "details" })}
+        <TallyView tally={current.tally} present={present} onPresent={setPresent}
+          backupDue={BROWSER.appleWebKit && backupDue(current.tally)} onBackup={() => setSheet({ kind: "fullCopy", mode: "backup" })}
+          onBack={goHome} onLog={() => setView({ name: "log" })} onDetails={() => setView({ name: "details" })}
           onShare={() => setSheet({ kind: "share", request: {} })} onWelcome={answerWelcome} />
       );
       break;
     case "log":
       screen = current && (
-        <LogPayment tally={current.tally} rateFor={rateFor} onSubmit={submitPayment}
+        <LogPayment tally={current.tally} rateFor={rateFor} onSubmit={submitPayment} defaultParticipants={present.length ? present : undefined}
           onCancel={() => setView({ name: view.edit ? "details" : "tally" })}
-          initial={view.edit && { category: view.edit.k, amount: view.edit.a, currency: view.edit.c, paidOn: view.edit.pd ?? view.edit.d }} />
+          initial={view.edit && { category: view.edit.k, amount: view.edit.a, currency: view.edit.c, paidOn: view.edit.pd ?? view.edit.d, participants: view.edit.p }} />
       );
       break;
     case "details":
@@ -256,7 +298,10 @@ export default function App({ rateFor = defaultRate, cacheName }) {
   return (
     <div style={S.page}>
       <Toast toast={toast} />
-      <main style={S.column}>{screen}</main>
+      <main style={S.column}>
+        {BROWSER.inApp !== null && view.name !== "loading" && <InAppHint app={BROWSER.inApp} onCopy={copyCurrentLink} />}
+        {screen}
+      </main>
       {sheet?.kind === "share" && current && (
         <ShareSheet tally={current.tally} cryptoKey={current.key} origin={linkOrigin()} request={sheet.request}
           onShared={async (link) => { await markShared(cache, current.tally, link); rerender(); }}
@@ -265,8 +310,14 @@ export default function App({ rateFor = defaultRate, cacheName }) {
       {sheet?.kind === "review" && current && (
         <Review tally={current.tally} report={sheet.report}
           onClose={(acted) => setSheet(acted ? { kind: "share", request: { message: MESSAGES.question } } : null)}
+          onFullCopy={() => setSheet({ kind: "fullCopy", mode: "send" })}
           onNotMe={(e) => change(t => notMe(t, [e.w, e.s]))}
           onAsk={(e, r) => change(t => askAbout(t, [e.w, e.s], r))} />
+      )}
+      {sheet?.kind === "fullCopy" && current && (
+        <FullCopySheet tally={current.tally} cryptoKey={current.key} origin={linkOrigin()} mode={sheet.mode}
+          onDone={async () => { if (sheet.mode === "backup") { await markBackedUp(cache, current.tally); rerender(); } }}
+          onClose={() => setSheet(null)} />
       )}
       {sheet?.kind === "sort" && current && (
         <SortOld tally={current.tally} onClose={() => setSheet(null)} onSort={(refs, k) => change(t => recategorize(t, refs, k))} />

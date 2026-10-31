@@ -25,9 +25,13 @@ export const fromBase64Url = (s) => Uint8Array.from(atob(s.replace(/-/g, "+").re
 
 export const utf8 = (s) => new TextEncoder().encode(s);
 
+// Streams come from `new Response(bytes).body`: standard everywhere, including test
+// environments whose Blob has no .stream().
+const streamOf = (bytes) => new Response(bytes).body;
+
 /** Raw deflate. */
 export async function deflate(bytes) {
-  return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream("deflate-raw"))).arrayBuffer());
+  return new Uint8Array(await new Response(streamOf(bytes).pipeThrough(new CompressionStream("deflate-raw"))).arrayBuffer());
 }
 
 /**
@@ -35,7 +39,7 @@ export async function deflate(bytes) {
  * can't expand into something that exhausts memory.
  */
 export async function inflate(bytes, maxBytes) {
-  const reader = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw")).getReader();
+  const reader = streamOf(bytes).pipeThrough(new DecompressionStream("deflate-raw")).getReader();
   const chunks = [];
   let total = 0;
   for (;;) {

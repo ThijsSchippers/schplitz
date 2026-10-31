@@ -2,7 +2,7 @@
 // model, links, the phone's cache and v1 conversion. Every function that changes a
 // tally also saves it to the cache.
 
-import { createTally, joinTally, mergePayload, addPayment, dayNumber, settled } from "./tally.js";
+import { createTally, joinTally, mergePayload, addPayment, addMember, renameTally, allEntries, dayNumber, settled } from "./tally.js";
 import { deriveKey, encodeLink, decodeLink, readHeader } from "./link.js";
 import { V1_STORAGE_KEY, convertFromDevice, defaultRate, fingerprint, looksLikeMismatchedAnswer, readV1Storage, reimportFromDevice } from "./migrate.js";
 import { emptyLocal } from "./cache.js";
@@ -13,7 +13,8 @@ import { decimalsOf, isoOfDay, toMinorUnits } from "./encoding.js";
 export const STICKY_CURRENCY_MS = 12 * 60 * 60 * 1000;
 
 const withLocal = (tally, changes = {}) => {
-  tally.local = { ...emptyLocal(), ...tally.local, lastSeen: Date.now(), ...changes };
+  const now = Date.now();
+  tally.local = { ...emptyLocal(), firstSeen: now, ...tally.local, lastSeen: now, ...changes };
   return tally;
 };
 
@@ -26,9 +27,13 @@ export async function save(cache, tally, localChanges) {
 
 // ─── starting and joining ────────────────────────────────────────────────────
 
-/** Creates a tally and caches it with its key. The answer is normalised like v1's. */
-export async function startTally(cache, { question, answer, myName, friendNames, currency }) {
+/**
+ * Creates a tally (2–10 people) and caches it with its key. `name` is optional
+ * ("Padel crew"). The answer is normalised like v1's.
+ */
+export async function startTally(cache, { question, answer, myName, friendNames, currency, name }) {
   const tally = createTally({ question, names: [myName, ...friendNames], me: myName, currency });
+  if (name?.trim()) await renameTally(tally, name);
   const key = await deriveKey(answer, tally.id);
   withLocal(tally);
   await cache.saveTallyWithKey(tally, key);
@@ -91,10 +96,10 @@ export async function valueInTallyCurrency(tally, amount, currency, day, rateFor
   return { value: Math.max(1, value), estimated: from.estimated || to.estimated };
 }
 
-/** Records a payment by me, locks its rate, and remembers the currency for the next one. */
-export async function recordPayment(cache, tally, { category, amount, currency, paidOn = dayNumber(), rateFor }) {
+/** Records a payment by me (participants: who was there, default everyone), locks its rate, and remembers the currency. */
+export async function recordPayment(cache, tally, { category, amount, currency, paidOn = dayNumber(), participants, rateFor }) {
   const { value, estimated } = await valueInTallyCurrency(tally, amount, currency, paidOn, rateFor);
-  const entry = await addPayment(tally, { category, amount, currency, value, paidOn, estimated });
+  const entry = await addPayment(tally, { category, amount, currency, value, paidOn, participants, estimated });
   // Paying in the tally currency again ends the 12 hours of a foreign one.
   await save(cache, tally, { lastCurrency: currency === tally.currency ? null : { c: currency, at: Date.now() } });
   return entry;
@@ -134,6 +139,61 @@ export async function prepareShare(tally, key, { origin, today = dayNumber() } =
 export function markShared(cache, tally, { full }) {
   return save(cache, tally, { sharedSeq: tally.writers[tally.me.writer].summary.s, ...(full ? { handshakeSent: true } : {}) });
 }
+
+/** Adds someone; they appear on the other phones with the next link. */
+export function addPerson(cache, tally, name) {
+  addMember(tally, name);
+  return save(cache, tally);
+}
+
+// ─── full copies and backups (docs §3.7, §4.1) ───────────────────────────────
+
+export const FULL_COPY_EXTENSION = ".schplitz";
+export const BACKUP_EVERY_ENTRIES = 20;
+export const BACKUP_EVERY_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * A link with the complete history, including other people's old v1 history: for a
+ * new or wiped phone, and for backups. Often longer than a normal link, so it's
+ * usually sent as a file.
+ */
+export async function prepareFullCopy(tally, key, { origin } = {}) {
+  await settled(tally);
+  return encodeLink(tally, key, { origin, full: true, includeProvisional: true });
+}
+
+/** A file holding a full copy. The content is the link itself, so opening it is opening the link. */
+export function fullCopyFile(label, url) {
+  const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "tally";
+  return new File([url], `schplitz-${slug}${FULL_COPY_EXTENSION}`, { type: "text/plain" });
+}
+
+/** Larger than any real full copy; a bigger file is something else picked by mistake. */
+export const MAX_FILE_BYTES = 10_000_000;
+
+/** Reads a full-copy file (or any text holding a link) and returns the link. Throws "not-a-link" or "too-large". */
+export async function linkFromFile(file) {
+  if (file.size > MAX_FILE_BYTES) throw new SchplitzError("too-large", "This file is too large to be a Schplitz full copy");
+  const text = (await file.text()).trim();
+  readHeader(text);   // throws SchplitzError("not-a-link") for anything else
+  return text;
+}
+
+/** How much this phone holds, for deciding when a backup is due. */
+const entryCount = (tally) => allEntries(tally).length;
+
+/**
+ * Whether to suggest saving a backup (Safari only, docs §4.1): after 20 new entries,
+ * or 30 days after the last backup when anything changed since.
+ */
+export function backupDue(tally, now = Date.now()) {
+  const last = tally.local?.lastBackup ?? { entries: 0, at: tally.local?.firstSeen ?? now };
+  const added = entryCount(tally) - last.entries;
+  return added >= BACKUP_EVERY_ENTRIES || (added > 0 && now - last.at >= BACKUP_EVERY_MS);
+}
+
+/** Call after a backup was saved or shared. */
+export const markBackedUp = (cache, tally) => save(cache, tally, { lastBackup: { entries: entryCount(tally), at: Date.now() } });
 
 // ─── v1 data on this phone ───────────────────────────────────────────────────
 
