@@ -198,7 +198,7 @@ describe("the chat is the database", () => {
 
   it("caps groups at 10", () => {
     const names = Array.from({ length: MAX_MEMBERS + 1 }, (_, i) => `P${i}`);
-    expect(() => createTally({ question: "q", names, me: "P0" })).toThrow(/at most 10/);
+    expect(() => createTally({ question: "q", names, me: "P0" })).toThrow(/up to 10 people/);
   });
 });
 
@@ -285,7 +285,7 @@ describe("corrections and disputes", () => {
     const { phones, ref } = await jessysDinner();
     await expect(notMe(phones.Jessy, ref)).rejects.toThrow(/your own/);
     await notMe(phones.Sofia, ref, TODAY);
-    await expect(notMe(phones.Sofia, ref)).rejects.toThrow(/not part/);
+    await expect(notMe(phones.Sofia, ref)).rejects.toThrow(/already said you weren't there/);
   });
 
   it("an open dispute travels in every link, however old", async () => {

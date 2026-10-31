@@ -42,7 +42,7 @@ export default function Details({ tally, onBack, actions }) {
   const counted = freshStart(tally) ? list.filter(p => !p.legacy) : list;
   const paidTotal = (id) => counted.filter(p => p.payer === id).reduce((sum, p) => sum + p.v, 0);
   const payOf = (d) => paymentState(tally, ...d.r);
-  const describe = (p) => p ? `${CATEGORIES[p.k]?.name ?? "Payment"} · ${money(p.v, tally.currency)}` : "a payment";
+  const describe = (p) => p ? `${CATEGORIES[p.k]?.name ?? "Payment"}, ${money(p.v, tally.currency)}` : "a deleted payment";
 
   const turn = whoseTurn(tally);
   const mostAhead = [...tally.members].sort((a, b) => nets[b.id] - nets[a.id])[0];
@@ -93,7 +93,7 @@ export default function Details({ tally, onBack, actions }) {
       {mine.length > 0 && <h2 style={S.sectionLabel}>Waiting for an answer</h2>}
       {mine.map(d => (
         <p key={refKey(d.w, d.s)} style={{ ...S.muted, padding: "0 4px" }}>
-          {d.t === "notme" ? "You weren't there" : `You asked about ${QUERY_LABELS[d.q]}`}: {describe(payOf(d))}.
+          {d.t === "notme" ? "You said you weren't there" : `You asked about ${QUERY_LABELS[d.q]}`} ({describe(payOf(d))}).
           Waiting for {nameOf(tally, tally.writers[d.r[0]]?.member)}.
         </p>
       ))}
@@ -162,10 +162,10 @@ export default function Details({ tally, onBack, actions }) {
         </Button>
       </div>
       <Button variant="secondary" icon="download" onClick={actions.fullCopy}>Send a full copy</Button>
-      <p style={S.muted}>For a new or wiped phone: a file with the complete history, including entries older than 30 days.</p>
+      <p style={S.muted}>Use this when someone gets a new phone. It's a file with all the history, not just the last 30 days.</p>
 
       <Button variant="ghost" style={{ marginTop: 18 }} onClick={() => setConfirm({
-        text: "Remove this tally from this phone? Your chat still has it: open the latest link and type the answer to bring it back.",
+        text: "Remove this tally from this phone? You can get it back by opening the latest link in your chat and typing the answer.",
         action: "Remove", run: actions.forget,
       })}>Remove from this phone</Button>
 
@@ -188,7 +188,7 @@ export default function Details({ tally, onBack, actions }) {
 
       {paidBack && (
         <Sheet title="Record paid back" onClose={() => setPaidBack(null)}>
-          <p style={S.muted}>Money that changed hands outside Schplitz. It only shows up here, in Details.</p>
+          <p style={S.muted}>For money that changed hands outside Schplitz. It only shows up in Details.</p>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 14 }}>
             <select aria-label="Who paid" value={paidBack.from} onChange={e => setPaidBack(x => ({ ...x, from: e.target.value }))} style={{ ...S.input, width: "auto", flex: 1 }}>
               {tally.members.map(m => <option key={m.id} value={m.id}>{m.id === me ? "You" : m.name}</option>)}

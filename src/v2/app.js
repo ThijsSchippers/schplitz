@@ -68,7 +68,7 @@ export async function unlockLink(cache, url, answer) {
     return { header, payload, key };
   } catch (err) {
     if (err.code === "cannot-decrypt" && (await cache.listTallies()).some(t => looksLikeMismatchedAnswer(t, header)))
-      throw new SchplitzError("answer-mismatch", "This looks like your old tally, but your answers don't match");
+      throw new SchplitzError("answer-mismatch", "This is your old tally, but your answers don't match. One of you typed it differently.");
     throw err;
   }
 }
@@ -173,7 +173,7 @@ export const MAX_FILE_BYTES = 10_000_000;
 
 /** Reads a full-copy file (or any text holding a link) and returns the link. Throws "not-a-link" or "too-large". */
 export async function linkFromFile(file) {
-  if (file.size > MAX_FILE_BYTES) throw new SchplitzError("too-large", "This file is too large to be a Schplitz full copy");
+  if (file.size > MAX_FILE_BYTES) throw new SchplitzError("too-large", "That file is too big to be a Schplitz full copy.");
   const text = (await file.text()).trim();
   readHeader(text);   // throws SchplitzError("not-a-link") for anything else
   return text;
@@ -222,13 +222,13 @@ export async function v1Status(cache, storage = globalThis.localStorage) {
 export async function convertDeviceV1(cache, { answer, storage = globalThis.localStorage, rateFor } = {}) {
   const raw = storage.getItem(V1_STORAGE_KEY);
   const result = await convertFromDevice(raw, { answer, rateFor });
-  if (result.needsAnswer) throw new SchplitzError("invalid-input", "The answer is needed to bring this tally in");
-  if (!result.tally) throw new SchplitzError("not-found", "No Schplitz 1 tally on this phone");
+  if (result.needsAnswer) throw new SchplitzError("invalid-input", "Type the answer to bring this tally in.");
+  if (!result.tally) throw new SchplitzError("not-found", "There's no Schplitz 1 tally on this phone.");
 
   // Bringing it in again with a different answer would derive a different tally: refuse.
   const done = await cache.getMeta("v1Converted");
   if (done?.tallyId && done.tallyId !== result.tally.id && await cache.loadTally(done.tallyId))
-    throw new SchplitzError("answer-mismatch", "That answer doesn't match the one you used before");
+    throw new SchplitzError("answer-mismatch", "That's not the answer you used last time for this tally.");
 
   let { tally, key } = result, added = 0, existing = false;
   const cached = await cache.loadTally(tally.id);

@@ -49,7 +49,7 @@ const sizeOf = (tally, net) => socialAmount(tally, net) ?? (Math.abs(net) < 4 * 
 /** The big line on the tally screen. `present`: member IDs here today (default everyone). */
 export function hero(tally, present) {
   const turn = whoseTurn(tally, present);
-  if (turn.aboutEven) return { title: "You're about even", sub: "Whoever's buying next, enjoy.", member: null };
+  if (turn.aboutEven) return { title: "You're about even", sub: "Nobody's really behind right now.", member: null };
   const isMe = turn.member === tally.me.member;
   const name = nameOf(tally, turn.member);
   const title = isMe ? "Next one's on you" : `Next one's on ${name}`;
@@ -83,14 +83,14 @@ export const addLabel = (category) => ADD[category] ?? "Add";
 export function shareMessage(tally, lastCategory) {
   const turn = whoseTurn(tally);
   const pair = tally.members.length === 2;
-  const tail = turn.aboutEven ? "we're about even"
-    : turn.member === tally.me.member ? "next one's on me"
-    : pair ? "next one's on you" : `next one's on ${nameOf(tally, turn.member)}`;
-  const head = lastCategory === undefined ? "Our Schplitz tally" : GOT[lastCategory] ?? GOT[OTHER];
-  return `${head} — ${tail}`;
+  const next = turn.aboutEven ? "We're about even."
+    : turn.member === tally.me.member ? "Still my turn next."
+    : pair ? "Next one's on you." : `Next one's on ${nameOf(tally, turn.member)}.`;
+  const head = lastCategory === undefined ? "Here's our Schplitz tally." : `${GOT[lastCategory] ?? GOT[OTHER]}.`;
+  return `${head} ${next}`;
 }
 
-export const inviteMessage = (tally) => `${nameOf(tally, tally.me.member)} started a Schplitz tally with you`;
+export const INVITE_MESSAGE = "I started a Schplitz tally for us. Open the link and type the answer to join.";
 
 /** "Liam asks about the amount" */
 export const QUERY_LABELS = { amount: "the amount", date: "the date", category: "the category", duplicate: "a possible duplicate" };
@@ -118,15 +118,12 @@ export function payments(tally) {
 /** User-facing text for an error from the v2 modules. */
 export function errorText(err) {
   switch (err?.code) {
-    case "cannot-decrypt": return "That answer doesn't match this tally. Check with the person who sent it.";
-    case "answer-mismatch": return err.message.includes("used before")
-      ? "That answer doesn't match the one you used before for this tally."
-      : "This is your old tally, but your answers don't match. One of you typed it differently.";
+    case "cannot-decrypt": return "That answer doesn't match this tally. Check with whoever sent the link.";
     case "not-a-link": return "This isn't a Schplitz link, or part of it is missing.";
     case "unsupported-version": return "This link is from a newer version of Schplitz. Reload the page to update.";
     case "invalid-payload": return "This link is damaged and can't be opened.";
-    case "too-large": return "This link is too large to open.";
-    case "invalid-input": case "not-allowed": case "not-found": return err.message;
-    default: return "Something went wrong. Please try again.";
+    // These messages are written for people where they're raised.
+    case "answer-mismatch": case "too-large": case "invalid-input": case "not-allowed": case "not-found": return err.message;
+    default: return "Something went wrong. Try again.";
   }
 }

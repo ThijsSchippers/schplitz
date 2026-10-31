@@ -134,7 +134,7 @@ export default function LogPayment({ tally, initial, defaultParticipants, onSubm
 
       {choosingPeople && (
         <Sheet title="Who was there?" onClose={() => setChoosingPeople(false)}>
-          <p style={S.muted}>The payment is split between the people you pick. You can leave yourself out if you didn't have any.</p>
+          <p style={S.muted}>It's split between the people you pick. Leave yourself out if you didn't have any.</p>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {tally.members.map(m => {
               const on = participants.includes(m.id);

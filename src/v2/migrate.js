@@ -205,7 +205,7 @@ const notesFrom = (expenses) => Object.fromEntries(expenses.map(e => [shortId(e.
 export async function convertV1({ data, myName, answer, rateFor = defaultRate, source = "device" }) {
   const names = data.names;
   if (!Array.isArray(names) || names.length !== 2 || names[0] === names[1] || !names.includes(myName))
-    throw new SchplitzError("invalid-input", "Can't tell who is who in this tally");
+    throw new SchplitzError("invalid-input", "This Schplitz 1 tally is missing a name, so it can't be brought in.");
   names.forEach(checkName);
   checkQuestion(data.question);
   const otherName = names.find(n => n !== myName);

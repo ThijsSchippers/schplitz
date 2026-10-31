@@ -78,7 +78,7 @@ describe("text on screen", () => {
     for (let i = 0; i < 4; i++) await addPayment(t, { category: 6, amount: 2400 });
     expect(hero(t)).toMatchObject({ title: "Next one's on Liam", sub: "Liam is about 2 rounds of drinks behind." });
     expect(socialAmount(t, 2400)).toBe("about a round of drinks");
-    expect(shareMessage(t, 6)).toBe("Got the drinks — next one's on you");
+    expect(shareMessage(t, 6)).toBe("Got the drinks. Next one's on you.");
     expect(othersLabel(t, "en")).toBe("Liam");
   });
 

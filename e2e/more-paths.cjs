@@ -43,7 +43,7 @@ const BASE = process.env.BASE ?? "http://localhost:4173/v2/";
   await b.getByRole("button", { name: "Not me" }).click();
   await b.getByText("All checked.").waitFor();
   await b.getByRole("button", { name: "Done" }).click();
-  await b.getByText("I have a question about one of the payments — have a look").waitFor();
+  await b.getByText("I've got a question about one of the payments.").waitFor();
   const notMeLink = await link(b);
   await a.goto(notMeLink);
   await a.getByText("has a question about one of your payments").waitFor();

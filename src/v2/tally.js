@@ -79,7 +79,7 @@ export function createTally({ question, currency = "EUR", names: rawNames, me: r
   if (!Array.isArray(rawNames) || rawNames.length < 2) throw invalid("A tally needs at least 2 members");
   rawNames.forEach(checkName);
   const names = rawNames.map(n => n.trim()), me = String(rawMe).trim();
-  if (names.length > MAX_MEMBERS) throw invalid(`A tally has at most ${MAX_MEMBERS} members`);
+  if (names.length > MAX_MEMBERS) throw invalid(`A tally can have up to ${MAX_MEMBERS} people.`);
   if (new Set(names).size !== names.length) throw invalid("Member names must be unique when creating a tally");
   if (!names.includes(me)) throw invalid("'me' must be one of the names");
   if (!isCurrency(currency)) throw invalid("Unknown currency");
@@ -239,17 +239,17 @@ async function append(tally, fields, at) {
 }
 
 function checkPayment(tally, p) {
-  if (!isCategory(p.k)) throw invalid("Unknown category");
-  if (!isMoney(p.a)) throw invalid("Amount must be a positive whole number of minor units");
-  if (!isCurrency(p.c)) throw invalid("Unknown currency");
-  if (!isMoney(p.v)) throw invalid("Value in the tally currency is required for a foreign currency");
-  if (!isParticipants(p.p, memberSet(tally))) throw invalid("Participants must be distinct members of the tally");
+  if (!isCategory(p.k)) throw invalid("Pick a category.");
+  if (!isMoney(p.a)) throw invalid("Enter an amount above zero.");
+  if (!isCurrency(p.c)) throw invalid("Unknown currency.");
+  if (!isMoney(p.v)) throw invalid("Value in the tally currency is required for a foreign currency");   // a bug if it happens
+  if (!isParticipants(p.p, memberSet(tally))) throw invalid("Pick who was there.");
   if (p.pd !== undefined && !isDay(p.pd)) throw invalid("Invalid payment day");
 }
 
 function ownPay(tally, seq) {
   const pay = effectivePays(logOf(tally, tally.me.writer)).get(seq);
-  if (!pay) throw notAllowed("You can only change your own payments");
+  if (!pay) throw notAllowed("You can only change your own payments.");
   return pay;
 }
 
@@ -308,14 +308,14 @@ async function doVoidPayment(tally, seq, at) {
 
 function doNotMe(tally, [w, s], at) {
   const target = tally.writers[w];
-  if (!target) throw notFound("Payment not found on this phone");
+  if (!target) throw notFound("This payment isn't on this phone.");
   const me = tally.me.member;
-  if (target.member === me) throw notAllowed("Use edit for your own payments");
+  if (target.member === me) throw notAllowed("It's your own payment. Change it instead.");
   const pay = paymentState(tally, w, s);
-  if (!pay) throw notFound("Payment not found on this phone");
-  if (!pay.p.includes(me)) throw notAllowed("You're not part of this payment");
+  if (!pay) throw notFound("This payment isn't on this phone.");
+  if (!pay.p.includes(me)) throw notAllowed("You're not part of this payment.");
   if (openDisputesOn(tally, w, s).some(d => d.t === "notme" && tally.writers[d.w].member === me))
-    throw notAllowed("You're not part of this payment any more (waiting for the payer)");
+    throw notAllowed("You already said you weren't there.");
   const delta = addNets(payEffect(target.member, pay.v, pay.p.filter(id => id !== me)), payEffect(target.member, pay.v, pay.p), -1);
   return append(tally, { t: "notme", r: [w, s], n: delta, ...(target.legacy ? { lg: 1 } : {}) }, at);
 }
@@ -323,8 +323,8 @@ function doNotMe(tally, [w, s], at) {
 function doAskAbout(tally, [w, s], reason, at) {
   if (!QUERY_REASONS.includes(reason)) throw invalid("Unknown reason");
   const target = tally.writers[w];
-  if (!target || !paymentState(tally, w, s)) throw notFound("Payment not found on this phone");
-  if (target.member === tally.me.member) throw notAllowed("You can change your own payments directly");
+  if (!target || !paymentState(tally, w, s)) throw notFound("This payment isn't on this phone.");
+  if (target.member === tally.me.member) throw notAllowed("It's your own payment. Change it instead.");
   return append(tally, { t: "query", r: [w, s], q: reason }, at);
 }
 
@@ -332,9 +332,9 @@ function doAskAbout(tally, [w, s], reason, at) {
 // this phone can't write to (converted v1 history, or a previous phone of mine).
 function myOpenDispute(tally, [w, s]) {
   const d = entryOf(tally, w, s);
-  if (!d || (d.t !== "notme" && d.t !== "query")) throw notFound("Dispute not found");
-  if (tally.writers[d.r[0]]?.member !== tally.me.member) throw notAllowed("Only the payer can resolve this");
-  if (resolvedRefs(tally).has(refKey(w, s))) throw notAllowed("Already resolved");
+  if (!d || (d.t !== "notme" && d.t !== "query")) throw notFound("This question isn't on this phone.");
+  if (tally.writers[d.r[0]]?.member !== tally.me.member) throw notAllowed("Only the person who paid can answer this.");
+  if (resolvedRefs(tally).has(refKey(w, s))) throw notAllowed("This was already answered.");
   return { d, frozen: d.r[0] !== tally.me.writer };
 }
 
@@ -351,7 +351,7 @@ async function doAcceptDispute(tally, ref, fix, at) {
     return edit ?? append(tally, resolveFields(d, "accepted", { takeOver: true }), at);
   }
   const changes = pick(fix, PAY_FIELDS);
-  if ((fix.void || Object.keys(changes).length) && frozen) throw notAllowed("Converted v1 entries can't be changed");
+  if ((fix.void || Object.keys(changes).length) && frozen) throw notAllowed("Entries from Schplitz 1 can't be changed.");
   if (fix.void) return doVoidPayment(tally, seq, at);                     // closes the dispute too
   if (Object.keys(changes).length) await doEditPayment(tally, seq, changes, at);
   return append(tally, resolveFields(d, "accepted", { takeOver: false }), at);
@@ -370,9 +370,9 @@ function doRecategorize(tally, refs, category, at) {
     if (seen.has(refKey(w, s))) continue;
     seen.add(refKey(w, s));
     const writer = tally.writers[w];
-    if (!writer?.legacy || writer.provisional || writer.member !== tally.me.member) throw notAllowed("You can only sort your own old entries");
+    if (!writer?.legacy || writer.provisional || writer.member !== tally.me.member) throw notAllowed("You can only sort your own old entries.");
     const pay = paymentState(tally, w, s);
-    if (!pay) throw notFound("Entry not found");
+    if (!pay) throw notFound("This entry isn't on this phone.");
     const from = categoryOf(tally, w, s);
     if (from !== category) x.push([w, s, pay.v, from]);
   }
@@ -381,8 +381,8 @@ function doRecategorize(tally, refs, category, at) {
 
 function doAddPaidBack(tally, { from, to, value, at }) {
   const members = memberSet(tally);
-  if (from === to || !members.has(from) || !members.has(to)) throw invalid("Paid back needs two different members");
-  if (!isMoney(value)) throw invalid("Value must be a positive whole number of minor units");
+  if (from === to || !members.has(from) || !members.has(to)) throw invalid("Pick two different people.");
+  if (!isMoney(value)) throw invalid("Enter an amount above zero.");
   return append(tally, { t: "back", fr: from, to, v: value }, at);
 }
 
@@ -421,8 +421,8 @@ export const renameTally = (tally, name, at) => queued(tally, () => {
 export function addMember(tally, rawName) {
   checkName(rawName);
   const name = rawName.trim();
-  if (tally.members.length >= MAX_MEMBERS) throw invalid(`A tally has at most ${MAX_MEMBERS} members`);
-  if (tally.members.some(m => m.name.toLowerCase() === name.toLowerCase())) throw invalid(`${name} is already in this tally`);
+  if (tally.members.length >= MAX_MEMBERS) throw invalid(`A tally can have up to ${MAX_MEMBERS} people.`);
+  if (tally.members.some(m => m.name.toLowerCase() === name.toLowerCase())) throw invalid(`${name} is already in this tally.`);
   const member = { id: randomHex(4), name };
   tally.members.push(member);
   return member;

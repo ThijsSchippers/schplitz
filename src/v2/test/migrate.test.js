@@ -226,7 +226,7 @@ describe("old links after the upgrade", () => {
     expect(r.outcome).toBe("up-to-date");
   });
 
-  it("on a phone without the tally, an old link creates it — v3 text too", async () => {
+  it("on a phone without the tally, an old link creates it, v3 text too", async () => {
     const r = await applyV1Share(null, await openV1Share(await readV1Share(
       await v3Text("Sofia", "Liam", [exp("Sofia", "koffie", 7.4), exp("Liam", "bier", 24)])), ANSWER),
       { myName: "Liam", answer: ANSWER, rateFor });

@@ -23,9 +23,9 @@ import { S } from "./theme.js";
 const TOAST_MS = 3200;
 
 const MESSAGES = {
-  notMe: "I wasn't part of one of the payments — have a look",
-  question: "I have a question about one of the payments — have a look",
-  fresh: "I started our tally fresh from here — have a look",
+  notMe: "I wasn't part of one of the payments. Can you take a look?",
+  question: "I've got a question about one of the payments.",
+  fresh: "I've started our tally fresh from here.",
 };
 
 /** Links point back at wherever this app is served (e.g. /v2/ during the preview). */
@@ -87,7 +87,7 @@ export default function App({ rateFor = defaultRate, cacheName }) {
       const { report, tally } = r;
       showTally(tally, r.key, needsReview(report) ? { kind: "review", report } : null);
       if (!needsReview(report))
-        flash(report.newEntries.length ? `${nameOf(tally, tally.writers[report.newEntries[0].w]?.member)}'s update is in · ${hero(tally).title}` : "Already up to date");
+        flash(report.newEntries.length ? `Got ${nameOf(tally, tally.writers[report.newEntries[0].w]?.member)}'s update. ${hero(tally).title}.` : "Nothing new in this link.");
     } catch (err) {
       setView({ name: "home" });
       flash(errorText(err), true);
@@ -173,7 +173,7 @@ export default function App({ rateFor = defaultRate, cacheName }) {
   async function joinTally(unlocked, memberId) {
     const { tally, returning } = await completeJoin(cache, unlocked, memberId);
     showTally(tally, unlocked.key);
-    flash(returning ? "Welcome back. Your balance is restored from this link." : "You're in");
+    flash(returning ? "Welcome back. Your balance is restored." : "You're in.");
   }
 
   async function openFile(file) {
@@ -196,7 +196,7 @@ export default function App({ rateFor = defaultRate, cacheName }) {
       const { tally, key, existing, added } = await convertDeviceV1(cache, { answer, rateFor });
       await refresh(cache);
       showTally(tally, key);
-      if (existing) flash(added ? `Brought in ${added} new ${added === 1 ? "entry" : "entries"}` : "Already up to date");
+      if (existing) flash(added ? `Brought in ${added} new ${added === 1 ? "entry" : "entries"}.` : "Nothing new to bring in.");
     } catch (err) { flash(errorText(err), true); }
   }
 
@@ -240,15 +240,15 @@ export default function App({ rateFor = defaultRate, cacheName }) {
     notMe: (p) => change(t => notMe(t, [p.w, p.s]), { share: { message: MESSAGES.notMe } }),
     ask: (p, reason) => change(t => askAbout(t, [p.w, p.s], reason), { share: { message: MESSAGES.question } }),
     accept: (d, fix) => change(t => acceptDispute(t, [d.w, d.s], fix), { ok: "Done", share: {} }),
-    keep: (d) => change(t => keepAsIs(t, [d.w, d.s]), { ok: "Kept as it was", share: {} }),
+    keep: (d) => change(t => keepAsIs(t, [d.w, d.s]), { ok: "Left as it was", share: {} }),
     fix: (d) => {
       const pay = paymentState(current.tally, ...d.r);
-      if (pay) setView({ name: "log", edit: pay, dispute: d }); else flash("That payment was deleted.", true);
+      if (pay) setView({ name: "log", edit: pay, dispute: d }); else flash("That payment has been deleted.", true);
     },
     paidBack: (from, to, value) => change(t => addPaidBack(t, { from, to, value }), { ok: "Recorded", share: {} }),
     sort: () => setSheet({ kind: "sort" }),
     addPerson: async (name) => {
-      await change(t => addPerson(cache, t, name), { ok: `Added ${name.trim()}`, share: { message: `I added ${name.trim()} to our tally` } });
+      await change(t => addPerson(cache, t, name), { ok: `Added ${name.trim()}`, share: { message: `I added ${name.trim()} to our tally.` } });
       setPresent(currentRef.current.tally.members.map(m => m.id));
     },
     rename: (name) => change(t => renameTally(t, name), { ok: "Saved", share: {} }),

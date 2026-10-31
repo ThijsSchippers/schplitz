@@ -4,7 +4,7 @@ import { CATEGORIES, TILE_ORDER } from "../categories.js";
 import { usualAmount, QUERY_REASONS } from "../tally.js";
 import { prepareShare, prepareFullCopy, fullCopyFile } from "../app.js";
 import { LINK_BUDGET } from "../link.js";
-import { money, nameOf, othersLabel, tallyTitle, payments, shareMessage, inviteMessage, QUERY_CHIPS } from "./format.js";
+import { money, nameOf, othersLabel, tallyTitle, payments, shareMessage, INVITE_MESSAGE, QUERY_CHIPS } from "./format.js";
 import { qrPath } from "./qr.js";
 import { Button, Chip, Icon, Sheet } from "./components.jsx";
 import { C, S } from "./theme.js";
@@ -20,7 +20,7 @@ export function ShareSheet({ tally, cryptoKey, origin, request, onShared, onClos
   const [copied, setCopied] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const qr = link && showQr ? qrPath(link.url) : null;
-  const text = request.message ?? (request.invite ? inviteMessage(tally) : shareMessage(tally, request.lastCategory));
+  const text = request.message ?? (request.invite ? INVITE_MESSAGE : shareMessage(tally, request.lastCategory));
   const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
 
   useEffect(() => {
@@ -114,22 +114,22 @@ export function Review({ tally, report, onNotMe, onAsk, onFullCopy, onClose }) {
       {report.involvingMe.length > 0 && items.length === 0 && <p style={S.muted}>All checked.</p>}
       {report.replaced.map(r => (
         <p key={r.writer} style={S.muted}>
-          {nameOf(tally, tally.writers[r.writer]?.member)}'s phone sent its own version of your old tally
-          {r.added.length || r.removed.length ? `: ${r.added.length} added, ${r.removed.length} removed.` : ". It matches yours."}
+          {nameOf(tally, tally.writers[r.writer]?.member)}'s phone sent its copy of your old tally.
+          {r.added.length || r.removed.length ? ` ${r.added.length} ${r.added.length === 1 ? "entry" : "entries"} added, ${r.removed.length} removed.` : " It matches yours."}
         </p>
       ))}
       {report.review.map(r => r.theyMiss.length > 0 && (
-        <p key={r.writer} style={S.muted}>{othersLabel(tally)}'s phone didn't have {r.theyMiss.length} of your old entries. They're kept.</p>
+        <p key={r.writer} style={S.muted}>{othersLabel(tally)}'s phone was missing {r.theyMiss.length} of your old entries. They're still here.</p>
       ))}
       {report.newPhones.map(m => (
         <section key={m} style={{ ...S.card, background: C.field }}>
           <p style={{ margin: 0, fontSize: 14 }}>{nameOf(tally, m)} is using a new phone.</p>
-          <p style={{ ...S.muted, marginTop: 4 }}>Their balance is already restored. Send a full copy so they have the older history too.</p>
+          <p style={{ ...S.muted, marginTop: 4 }}>Their balance is already there. Send a full copy if they want the older history too.</p>
           <Button variant="secondary" icon="download" style={{ marginTop: 10 }} onClick={onFullCopy}>Send a full copy</Button>
         </section>
       ))}
       {report.conflicts.length > 0 && (
-        <p style={{ ...S.muted, color: C.danger }}>Something in this link doesn't match what this phone has. Ask {othersLabel(tally)} to share again; if it keeps happening, exchange full copies.</p>
+        <p style={{ ...S.muted, color: C.danger }}>Something in this link doesn't match this phone. Ask {othersLabel(tally)} to share again. If it keeps happening, send each other a full copy.</p>
       )}
       <Button onClick={close}>Done</Button>
     </Sheet>
@@ -215,15 +215,15 @@ export function FullCopySheet({ tally, cryptoKey, origin, mode, onDone, onClose 
     <Sheet title={mode === "backup" ? "Save a backup" : "Send a full copy"} onClose={onClose}>
       <p style={{ ...S.muted, fontSize: 14 }}>
         {mode === "backup"
-          ? "Save it in Files, ideally in iCloud Drive. To restore: open Schplitz, tap “Open a full copy”, and type the answer."
-          : `Send it to whoever needs the complete history. They open Schplitz, tap “Open a full copy”, and type the answer.`}
+          ? "Save it in Files, preferably in iCloud Drive. If you ever need it, open Schplitz, tap Open a full copy and type the answer."
+          : "Send it to whoever needs the full history. They open Schplitz, tap Open a full copy and type the answer."}
       </p>
       {canShareFile && <Button icon="share" onClick={shareFile}>Share the file</Button>}
       <Button variant={canShareFile ? "secondary" : "primary"} icon="download" disabled={!file} onClick={download}>{file ? "Download the file" : "Preparing…"}</Button>
       {link && link.length <= LINK_BUDGET && (
-        <p style={S.muted}>It's small enough to send as a normal link too: any link restores the balance and the last 30 days.</p>
+        <p style={S.muted}>A normal link would also do here. Any link brings back the balance and the last 30 days.</p>
       )}
-      {error && <p role="alert" style={{ color: C.danger, fontSize: 13, margin: 0 }}>Couldn't prepare the file. Please try again.</p>}
+      {error && <p role="alert" style={{ color: C.danger, fontSize: 13, margin: 0 }}>Couldn't make the file. Try again.</p>}
     </Sheet>
   );
 }

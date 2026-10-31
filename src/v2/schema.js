@@ -102,12 +102,12 @@ const has = (o, k) => Object.hasOwn(o, k);
 
 export function checkName(name) {
   if (typeof name !== "string" || !name.trim() || name.length > MAX_NAME_LEN)
-    fail("invalid-input", `Names must be 1–${MAX_NAME_LEN} characters`);
+    fail("invalid-input", `Names can be up to ${MAX_NAME_LEN} characters.`);
 }
 
 export function checkQuestion(question) {
   if (typeof question !== "string" || !question.trim() || question.length > MAX_QUESTION_LEN)
-    fail("invalid-input", `The question must be 1–${MAX_QUESTION_LEN} characters`);
+    fail("invalid-input", `Keep the question under ${MAX_QUESTION_LEN} characters.`);
 }
 
 export const isCurrency = (c) => typeof c === "string" && CURRENCY.test(c);

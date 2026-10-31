@@ -15,7 +15,7 @@ export function InAppHint({ app, onCopy }) {
   return (
     <section role="note" style={{ ...S.card, borderColor: C.other }}>
       <p style={{ margin: 0, fontSize: 14 }}>You're in {app ? `${app}'s` : "an app's"} built-in browser.</p>
-      <p style={{ ...S.muted, marginTop: 4 }}>Open this page in your phone's browser so it remembers your tally. Your balance is safe either way: it's in the link.</p>
+      <p style={{ ...S.muted, marginTop: 4 }}>Open this page in your phone's own browser so it remembers your tally. Nothing is lost if you don't, because the link has your balance.</p>
       <Button variant="secondary" style={{ marginTop: 10 }} onClick={onCopy}>Copy this page's link</Button>
     </section>
   );
@@ -64,7 +64,7 @@ export function Home({ tallies, v1, onOpen, onStart, onConvert, onOpenFile, onIn
       )}
       {onInstall && <Button variant="ghost" icon="mobile_arrow_down" onClick={onInstall}>Install Schplitz</Button>}
       <p style={{ ...S.muted, fontSize: 12, marginTop: 8 }}>
-        Your tallies live in your chats: every link holds the balance. This phone only remembers them so you don't have to type the answer each time.
+        Every link you share holds the full balance, so your chats are the real record. This phone just remembers your tallies so you don't have to type the answer each time.
       </p>
     </>
   );
@@ -120,7 +120,7 @@ export function Start({ onBack, onCreate }) {
         placeholder="Where did we first meet?" hint="Anyone who sees a link can read the question, so keep it vague." />
       <AnswerFields answer={form.answer} setAnswer={v => setForm(f => ({ ...f, answer: v }))} confirm={form.confirm} setConfirm={v => setForm(f => ({ ...f, confirm: v }))} />
       <Button disabled={!ready || busy} onClick={submit}>{busy ? "Setting up…" : "Start"}</Button>
-      <p style={S.muted}>The answer is the key: links can only be opened with it. It never leaves your phone.</p>
+      <p style={S.muted}>Links only open with the answer. It never leaves your phone.</p>
     </>
   );
 }
@@ -153,7 +153,7 @@ export function Join({ header, onBack, onUnlock, onJoin }) {
           onKeyDown={e => { if (e.key === "Enter" && normalizeAnswer(answer)) unlock(); }} autoFocus />
         {error && <p role="alert" style={{ color: C.danger, fontSize: 14, margin: 0 }}>{error}</p>}
         <Button disabled={!normalizeAnswer(answer) || busy} onClick={unlock}>{busy ? "Unlocking…" : "Open"}</Button>
-        <p style={S.muted}>You type the answer once on this phone; after that, links open straight away.</p>
+        <p style={S.muted}>You only type the answer once on this phone. After that, links open straight away.</p>
       </>) : (<>
         <h2 style={S.h2}>Which one are you?</h2>
         {unlocked.payload.m.map(([id, name]) => {
@@ -194,7 +194,7 @@ export function ConvertV1({ v1, onBack, onConvert }) {
           <p style={{ margin: 0, fontSize: 18 }}>{v1.question}</p>
         </section>
         <AnswerFields answer={answer} setAnswer={setAnswer} confirm={confirm} setConfirm={setConfirm} />
-        <p style={S.muted}>Type it exactly as you and {v1.names.find(n => n !== v1.myName)} agreed: both phones use it to find each other.</p>
+        <p style={S.muted}>Use the same answer as {v1.names.find(n => n !== v1.myName)}. Both phones need it to find each other.</p>
       </>)}
       <Button disabled={!ready || busy} onClick={submit}>{busy ? "Bringing it in…" : "Bring it in"}</Button>
     </>

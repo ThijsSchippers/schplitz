@@ -177,7 +177,7 @@ export async function decodeLink(url, key) {
     json = new TextDecoder("utf-8", { fatal: true }).decode(await inflate(plain, MAX_PAYLOAD_BYTES));
   } catch (err) {
     throw err instanceof RangeError
-      ? new SchplitzError("too-large", "The link's content is too large")
+      ? new SchplitzError("too-large", "This link is too large to open.")
       : new SchplitzError("invalid-payload", "The link's content can't be read");
   }
   let payload;

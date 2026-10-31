@@ -64,7 +64,7 @@ export default function TallyView({ tally, present, onPresent, backupDue, onBack
       {tally.v1 && !tally.local?.welcomeAnswered && (
         <section style={{ ...S.card, borderColor: C.accentBorder }}>
           <h2 style={S.h2}>Your tally with {title} came along</h2>
-          <p style={{ ...S.muted, marginTop: 6 }}>All your Schplitz 1 entries are here; the exact amounts are in Details. Did you already square up for this tally?</p>
+          <p style={{ ...S.muted, marginTop: 6 }}>All your Schplitz 1 entries are here, with the exact amounts in Details. Did you already square up?</p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
             <Button onClick={() => onWelcome(true)}>Yes, start fresh from here</Button>
             <Button variant="secondary" onClick={() => onWelcome(false)}>No, keep the balance</Button>

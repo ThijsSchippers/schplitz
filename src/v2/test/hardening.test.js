@@ -128,7 +128,7 @@ describe("disputes stay consistent with the payer's changes", () => {
     await sync(phones.Sofia, phones.Liam, key);
     await expect(keepAsIs(phones.Liam, [d.w, d.s])).rejects.toMatchObject({ code: "not-allowed" });
     await keepAsIs(phones.Jessy, [d.w, d.s], TODAY);
-    await expect(keepAsIs(phones.Jessy, [d.w, d.s])).rejects.toThrow(/Already resolved/);
+    await expect(keepAsIs(phones.Jessy, [d.w, d.s])).rejects.toThrow(/already answered/);
   });
 
   it("you can't 'ask about' your own payment", async () => {
