@@ -40,7 +40,8 @@ The design is in [`docs/v2.0.md`](../../docs/v2.0.md) and [`docs/v2.0-migration.
 ## Tests
 
 ```
-npx vitest run src/v2
+npm test -- src/v2      # tests
+npm run lint            # ESLint, scoped to src/v2
 ```
 
 | File | Covers |
