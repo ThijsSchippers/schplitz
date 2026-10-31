@@ -6,7 +6,7 @@
 // link and show the question before decrypting. It's bound to the ciphertext as
 // additional authenticated data, so it can't be swapped onto another payload.
 import { normalizeAnswer, PBKDF2_ITERS } from "../utils.js";
-import { WINDOW_DAYS, WINDOW_MIN, dayNumber, entryKey, openDisputes } from "./tally.js";
+import { WINDOW_DAYS, WINDOW_MIN, dayNumber, entryKey, openDisputes, FLAG_LEGACY, FLAG_PROVISIONAL } from "./tally.js";
 
 export const LINK_VERSION = 5;
 export const LINK_BUDGET  = 2000;
@@ -60,7 +60,8 @@ function payloadOf(tally, entries) {
     m: tally.members.map(m => [m.id, m.name]),
     w: Object.fromEntries(Object.entries(tally.writers)
       .filter(([, x]) => x.summary.s > 0)
-      .map(([w, { member, summary: { s, h, n, c } }]) => [w, [member, s, h, n, c]])),
+      .map(([w, { member, legacy, provisional, summary: { s, h, n, c, f } }]) =>
+        [w, [member, s, h, n, c, f ?? 0, (legacy ? FLAG_LEGACY : 0) | (provisional ? FLAG_PROVISIONAL : 0)]])),
     e: entries,
   };
 }
@@ -78,7 +79,22 @@ async function seal(tally, key, payload, origin) {
 // Builds the link. If it's over budget, the oldest entries that aren't part of an
 // open dispute are left out until it fits. The summaries are never left out, so
 // the balance in the link is always exact.
-export async function encodeLink(tally, key, { today = dayNumber(), budget = LINK_BUDGET, origin = "https://schplitz.com" } = {}) {
+// full: every entry, no window and no budget. Used for the first sync of a converted
+// v1 tally and for full-copy files.
+// includeProvisional: also send copies of other people's old histories as entries,
+// for "Send full copy" to a phone that lost its data.
+export async function encodeLink(tally, key, { today = dayNumber(), budget = LINK_BUDGET, origin = "https://schplitz.com", full = false, includeProvisional = false } = {}) {
+  if (full) {
+    // Someone's provisional copy of another person's old history only matters for
+    // spotting differences, so it travels as a list of v1 IDs, not as entries.
+    const provisional = includeProvisional ? [] : Object.entries(tally.writers).filter(([, x]) => x.provisional).map(([w]) => w);
+    const all = Object.values(tally.entries).filter(e => !provisional.includes(e.w));
+    const payload = payloadOf(tally, all);
+    if (provisional.length) payload.pl = Object.fromEntries(provisional.map(w =>
+      [w, Object.values(tally.entries).filter(e => e.w === w && e.l).map(e => e.l)]));
+    const url = await seal(tally, key, payload, origin);
+    return { url, length: url.length, entries: all.length, dropped: 0, fitsBudget: url.length <= budget };
+  }
   const { entries, pinned } = selectWindow(tally, today);
   const droppable = entries.filter(e => !pinned.has(entryKey(e.w, e.s))).sort((a, b) => a.d - b.d || a.s - b.s);
   const build = async (drop) => {
@@ -87,8 +103,8 @@ export async function encodeLink(tally, key, { today = dayNumber(), budget = LIN
     const url = await seal(tally, key, payloadOf(tally, kept), origin);
     return { url, length: url.length, entries: kept.length, dropped: drop };
   };
-  const full = await build(0);
-  if (full.length <= budget) return full;
+  const all = await build(0);
+  if (all.length <= budget) return all;
   // Fewest dropped entries that fit. Compression makes size only roughly monotonic,
   // so the result is checked again below.
   let lo = 1, hi = droppable.length;

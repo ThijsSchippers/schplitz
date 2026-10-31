@@ -50,7 +50,7 @@ export function joinTally(header, payload, myMemberId) {
   tally.writers[tally.me.writer] = { member: myMemberId, summary: emptySummary() };
   const report = mergePayload(tally, payload);
   const returning = Object.entries(tally.writers)
-    .some(([w, x]) => w !== tally.me.writer && x.member === myMemberId && x.summary.s > 0);
+    .some(([w, x]) => w !== tally.me.writer && x.member === myMemberId && x.summary.s > 0 && !x.legacy);
   return { tally, returning, report };
 }
 
@@ -115,17 +115,23 @@ export function effectivePays(log) {
 }
 
 // Net effect and category totals of a whole log (no hashing, so it's cheap).
+const addCat = (c, k, count, total) => {
+  const [c0, t0] = c[k] || [0, 0];
+  if (c0 + count === 0 && t0 + total === 0) delete c[k]; else c[k] = [c0 + count, t0 + total];
+};
+
 function foldNets(member, log) {
   const sum = { n: {}, c: {} };
   for (const e of log) {
     if (e.t === "back")    addNets(sum.n, { [e.fr]: e.v, [e.to]: -e.v });
     if (e.t === "notme")   addNets(sum.n, e.n);
     if (e.t === "resolve" && e.n) addNets(sum.n, e.n, -1);   // the payer takes over the adjustment
+    if (e.t === "recat")   for (const [, , v, from] of e.x) { addCat(sum.c, from, -1, -v); addCat(sum.c, e.k, 1, v); }
+    if (e.t === "fresh")   sum.f = [e.on, e.d, e.s];
   }
   for (const p of effectivePays(log).values()) {
     addNets(sum.n, payEffect(member, p.v, p.p));
-    const [count, total] = sum.c[p.k] || [0, 0];
-    sum.c[p.k] = [count + 1, total + p.v];
+    addCat(sum.c, p.k, 1, p.v);
   }
   return sum;
 }
@@ -158,14 +164,14 @@ async function append(tally, fields, day) {
 const memberIds = (tally) => tally.members.map(m => m.id);
 
 // amount/currency: what was paid; value: the tally-currency amount with the rate locked now.
-export async function addPayment(tally, { category, amount, currency, value, participants, day }) {
+export async function addPayment(tally, { category, amount, currency, value, participants, day, legacyId }) {
   if (!isCategory(category)) throw new Error("Unknown category");
   if (!Number.isInteger(amount) || amount <= 0) throw new Error("Amount must be a positive integer in minor units");
   const v = value ?? (currency === undefined || currency === tally.currency ? amount : null);
   if (!Number.isInteger(v) || v <= 0) throw new Error("Value in the tally currency is required for a foreign currency");
   const p = participants ?? memberIds(tally);
   if (!p.length || p.some(id => !memberIds(tally).includes(id))) throw new Error("Invalid participants");
-  return append(tally, { t: "pay", k: category, a: amount, c: currency ?? tally.currency, v, p }, day);
+  return append(tally, { t: "pay", k: category, a: amount, c: currency ?? tally.currency, v, p, ...(legacyId ? { l: legacyId } : {}) }, day);
 }
 
 function ownPay(tally, seq) {
@@ -247,11 +253,53 @@ export function openDisputes(tally) {
   return Object.values(tally.entries).filter(e => ["notme", "query"].includes(e.t) && !resolved.has(entryKey(e.w, e.s)));
 }
 
+export function setFreshStart(tally, on, day) {
+  return append(tally, { t: "fresh", on: on ? 1 : 0 }, day);
+}
+
+// Current category of a payment, after any re-sorting of old entries.
+export function categoryOf(tally, w, s) {
+  let k = paymentState(tally, w, s)?.k;
+  const recats = Object.values(tally.entries).filter(e => e.t === "recat" && e.x.some(([xw, xs]) => xw === w && xs === s))
+    .sort((a, b) => a.d - b.d || (a.w < b.w ? -1 : a.w > b.w ? 1 : a.s - b.s));
+  for (const r of recats) k = r.k;
+  return k;
+}
+
+// Sorting old entries (migration doc, step 2b): only your own converted v1 entries.
+export function recategorize(tally, refs, category, day) {
+  if (!isCategory(category)) return Promise.reject(new Error("Unknown category"));
+  const x = [];
+  for (const [w, s] of refs) {
+    const writer = tally.writers[w];
+    if (!writer?.legacy || writer.member !== tally.me.member || writer.provisional)
+      return Promise.reject(new Error("You can only sort your own old entries"));
+    const pay = paymentState(tally, w, s);
+    if (!pay) return Promise.reject(new Error("Entry not found"));
+    const from = categoryOf(tally, w, s);
+    if (from !== category) x.push([w, s, pay.v, from]);
+  }
+  return x.length ? append(tally, { t: "recat", k: category, x }, day) : Promise.resolve(null);
+}
+
 // ─── reading the tally ───────────────────────────────────────────────────────
+
+// "Start fresh" (migration doc, step 2): the latest choice by anyone wins, by day,
+// then writer, then seq. It lives in summaries, so it travels in every link.
+export function freshStart(tally) {
+  let latest = null;
+  for (const [w, { summary }] of Object.entries(tally.writers)) {
+    if (!summary.f) continue;
+    const [on, d, s] = summary.f;
+    if (!latest || d > latest.d || (d === latest.d && (w > latest.w || (w === latest.w && s > latest.s)))) latest = { on, d, w, s };
+  }
+  return Boolean(latest?.on);
+}
 
 export function balance(tally) {
   const nets = Object.fromEntries(tally.members.map(m => [m.id, 0]));
-  for (const { summary } of Object.values(tally.writers)) addNets(nets, summary.n);
+  const skipLegacy = freshStart(tally);
+  for (const { summary, legacy } of Object.values(tally.writers)) if (!(legacy && skipLegacy)) addNets(nets, summary.n);
   for (const m of tally.members) nets[m.id] ??= 0;
   return nets;
 }
@@ -292,17 +340,51 @@ export function socialUnits(tally, amount) {
 
 // ─── combining what a link brings ────────────────────────────────────────────
 
+export const FLAG_LEGACY = 1, FLAG_PROVISIONAL = 2;
+
+const legacyIds = (tally, w) => new Set(logOf(tally, w).map(e => e.l).filter(Boolean));
+
 export function mergePayload(tally, payload) {
-  const report = { newEntries: [], conflicts: [] };
+  const report = { newEntries: [], conflicts: [], replaced: [], review: [] };
   for (const [id, name] of payload.m)
     if (!tally.members.some(m => m.id === id)) tally.members.push({ id, name });
 
-  for (const [w, [member, s, h, n, c]] of Object.entries(payload.w)) {
-    const incoming = { s, h, n, c };
+  const skipEntriesOf = new Set();
+  for (const [w, [member, s, h, n, c, f, flags = 0]] of Object.entries(payload.w)) {
+    const incoming = { s, h, n, c, ...(f ? { f } : {}) };
+    const legacy = Boolean(flags & FLAG_LEGACY), provisional = Boolean(flags & FLAG_PROVISIONAL);
     const known = tally.writers[w];
-    if (!known) { tally.writers[w] = { member, summary: incoming }; continue; }
+    const theirIds = () => new Set(payload.pl?.[w] ?? payload.e.filter(e => e.w === w && e.l).map(e => e.l));
+
+    if (!known) { tally.writers[w] = { member, summary: incoming, legacy, provisional }; continue; }
     if (w === tally.me.writer) {
       if (s > known.summary.s) report.conflicts.push({ writer: w, reason: "someone else wrote as this phone" });
+      skipEntriesOf.add(w); continue;
+    }
+    if (provisional) {
+      // Someone's copy of an old v1 history never overrides what this phone has.
+      skipEntriesOf.add(w);
+      if (!known.provisional && known.member === tally.me.member) {
+        const mine = legacyIds(tally, w), theirs = theirIds();
+        report.review.push({ writer: w,
+          theyMiss: [...mine].filter(l => !theirs.has(l)),      // kept; ask me to confirm
+          iDeleted: [...theirs].filter(l => !mine.has(l)) });   // stays deleted
+      }
+      continue;
+    }
+    if (known.provisional) {
+      if (h === known.summary?.h && s === known.summary?.s) {
+        // The owner's version is exactly this phone's copy (e.g. they adopted it): keep the entries.
+        known.provisional = false; skipEntriesOf.add(w);
+        report.replaced.push({ writer: w, added: [], removed: [] });
+        continue;
+      }
+      // The owner's own version of an old v1 history replaces this phone's copy.
+      const before = legacyIds(tally, w);
+      for (const k of Object.keys(tally.entries)) if (tally.entries[k].w === w) delete tally.entries[k];
+      tally.writers[w] = { member, summary: incoming, legacy, provisional: false };
+      const after = theirIds();
+      report.replaced.push({ writer: w, added: [...after].filter(l => !before.has(l)), removed: [...before].filter(l => !after.has(l)) });
       continue;
     }
     if (s > known.summary.s) known.summary = incoming;
@@ -311,13 +393,20 @@ export function mergePayload(tally, payload) {
 
   for (const e of payload.e) {
     const key = entryKey(e.w, e.s);
-    if (tally.entries[key] || e.w === tally.me.writer) continue;
+    if (tally.entries[key] || skipEntriesOf.has(e.w)) continue;
     tally.entries[key] = e;
     report.newEntries.push(e);
   }
-  report.involvingMe = report.newEntries.filter(e => e.t === "pay" && e.w !== tally.me.writer &&
+  report.involvingMe = report.newEntries.filter(e => e.t === "pay" && !e.l && e.w !== tally.me.writer &&
     paymentState(tally, e.w, e.s)?.p.includes(tally.me.member));
   return report;
+}
+
+// A phone that lost its v1 data can take over the other person's copy of its history.
+export function adoptProvisional(tally, w) {
+  const writer = tally.writers[w];
+  if (!writer?.provisional || writer.member !== tally.me.member) throw new Error("Nothing to adopt");
+  writer.provisional = false;
 }
 
 // For every writer whose complete log is on this phone, recompute its summary
