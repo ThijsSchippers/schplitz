@@ -7,7 +7,7 @@ import {
 } from "../migrate.js";
 import {
   balance, verify, mergePayload, joinTally, adoptProvisional, addPayment, setFreshStart, freshStart,
-  recategorize, categoryTotals, categoryOf, logOf,
+  recategorize, categoryTotals, categoryOf, logOf, notMe, askAbout, acceptDispute, keepAsIs, openDisputes,
 } from "../tally.js";
 import { encodeLink, decodeLink, readHeader, deriveKey } from "../link.js";
 
@@ -98,8 +98,8 @@ describe("reading v1 storage", () => {
     const bad = { ...exp("Sofia", "x", 5), amount: -1 };
     const stranger = exp("Mallory", "huh", 5);
     const r = await convertFromDevice(storage("Sofia", "Liam", [exp("Sofia", "ok", 5), bad, stranger]), { answer: ANSWER, rateFor });
-    expect(r.tally.legacy.invalid).toHaveLength(1);
-    expect(r.tally.legacy.unassigned.map(u => u.paidBy)).toEqual(["Mallory"]);
+    expect(r.tally.v1.invalid).toHaveLength(1);
+    expect(r.tally.v1.unassigned.map(u => u.paidBy)).toEqual(["Mallory"]);
   });
 });
 
@@ -117,8 +117,8 @@ describe("converting entries", () => {
   it("keeps descriptions and settlement messages on this phone only", async () => {
     const r = await convertFromDevice(storage("Sofia", "Liam", [exp("Sofia", "Dinner at Lima", 40)],
       { settlements: { Liam: "My IBAN is NL00BANK0123456789" } }), { answer: ANSWER, rateFor });
-    expect(Object.values(r.tally.legacy.notes)).toEqual(["Dinner at Lima"]);
-    expect(r.tally.legacy.settlements.Liam).toMatch(/IBAN/);
+    expect(Object.values(r.tally.v1.notes)).toEqual(["Dinner at Lima"]);
+    expect(r.tally.v1.settlements.Liam).toMatch(/IBAN/);
     const { payload } = await decodeLink(await fullLink(r.tally, r.key), r.key);
     expect(JSON.stringify(payload)).not.toMatch(/Lima|IBAN/);
   });
@@ -206,7 +206,7 @@ describe("old links after the upgrade", () => {
     expect(r.outcome).toBe("updated");
     expect(logOf(liam, legacyWriterOf(liam, "Sofia"))).toHaveLength(2);
     expect(logOf(liam, legacyWriterOf(liam, "Liam"))).toHaveLength(before);
-    expect(liam.legacy.settlements).toEqual({});   // settlement texts from links aren't imported into an existing tally
+    expect(liam.v1.settlements).toEqual({});   // settlement texts from links aren't imported into an existing tally
   });
 
   it("an older link changes nothing", async () => {
@@ -234,6 +234,18 @@ describe("old links after the upgrade", () => {
     expect(balance(r.tally)[idOf(r.tally, "Liam")]).toBe(830);
   });
 
+  it("says clearly when the answer is wrong or the text isn't a v1 link", async () => {
+    const share = await readV1Share(await v4Link("Sofia", "Liam", [exp("Sofia", "koffie", 3)]));
+    await expect(openV1Share(share, "porto")).rejects.toMatchObject({ code: "cannot-decrypt" });
+    await expect(readV1Share("https://example.com/#share=nonsense")).rejects.toMatchObject({ code: "not-a-link" });
+    await expect(readV1Share('{"v":9}')).rejects.toMatchObject({ code: "not-a-link" });
+  });
+
+  it("refuses a v1 tally where it can't tell who is who", async () => {
+    const r = convertFromDevice(storage("Sam", "Sam", [exp("Sam", "x", 1)]), { answer: ANSWER, rateFor });
+    await expect(r).rejects.toMatchObject({ code: "invalid-input" });
+  });
+
   it("a link from a different tally is kept apart", async () => {
     const { liam } = await setup();
     const other = await openV1Share(await readV1Share(await v4Link("Liam", "Noor", [exp("Noor", "x", 5)])), ANSWER);
@@ -255,7 +267,7 @@ describe("after converting", () => {
   it("'start fresh' stops old entries counting, on every phone, even after a wipe", async () => {
     const { sofia, liam, key } = await synced();
     await setFreshStart(sofia, true, TODAY);
-    await addPayment(sofia, { category: 7, amount: 600, day: TODAY });
+    await addPayment(sofia, { category: 7, amount: 600, at: TODAY });
     expect(balance(sofia)[idOf(sofia, "Liam")]).toBe(-300);
 
     await receive(await link(sofia, key), key, liam);
@@ -276,7 +288,7 @@ describe("after converting", () => {
     const { sofia, liam, key } = await synced();
     const before = balance(sofia);
     const lw = legacyWriterOf(sofia, "Sofia");
-    const refs = logOf(sofia, lw).filter(e => sofia.legacy.notes[e.l] === "Cinema").map(e => [e.w, e.s]);
+    const refs = logOf(sofia, lw).filter(e => sofia.v1.notes[e.l] === "Cinema").map(e => [e.w, e.s]);
     await recategorize(sofia, refs, 10, TODAY);
     expect(balance(sofia)).toEqual(before);
     expect(categoryTotals(sofia)[10]).toEqual([1, 2500]);
@@ -287,6 +299,55 @@ describe("after converting", () => {
 
     const theirs = logOf(sofia, legacyWriterOf(sofia, "Liam")).map(e => [e.w, e.s]);
     await expect(recategorize(sofia, theirs.slice(0, 1), 6, TODAY)).rejects.toThrow(/your own/);
+  });
+
+  it("sorting the same entry again: the latest choice wins", async () => {
+    const { sofia } = await synced();
+    const [first] = logOf(sofia, legacyWriterOf(sofia, "Sofia"));
+    await recategorize(sofia, [[first.w, first.s]], 7, TODAY);
+    await recategorize(sofia, [[first.w, first.s]], 6, TODAY + 1);
+    expect(categoryOf(sofia, first.w, first.s)).toBe(6);
+    expect(categoryTotals(sofia)[7]).toBeUndefined();
+    expect(categoryTotals(sofia)[6]).toEqual([1, first.v]);
+    expect(await recategorize(sofia, [[first.w, first.s]], 6, TODAY + 2)).toBeNull();   // nothing to change
+  });
+
+  it("a 'Not me' on a converted entry can be kept or accepted, and agrees on both phones", async () => {
+    for (const choice of ["kept", "accepted"]) {
+      const { sofia, liam, key } = await synced();
+      const before = balance(sofia);
+      const old = logOf(liam, legacyWriterOf(liam, "Sofia"))[0];
+      const d = await notMe(liam, [old.w, old.s], TODAY);
+      expect(balance(liam)).not.toEqual(before);
+      await receive(await link(liam, key), key, sofia);
+      if (choice === "kept") await keepAsIs(sofia, [d.w, d.s], TODAY);
+      else await acceptDispute(sofia, [d.w, d.s], {}, TODAY);
+      await receive(await link(sofia, key), key, liam);
+      expect(openDisputes(sofia)).toHaveLength(0);
+      expect(balance(liam)).toEqual(balance(sofia));
+      expect(balance(sofia)).toEqual(choice === "kept" ? before : balance(liam));
+      if (choice === "accepted") expect(balance(sofia)).not.toEqual(before);
+    }
+  });
+
+  it("converted entries can't be changed through 'Ask about it'", async () => {
+    const { sofia, liam, key } = await synced();
+    const old = logOf(liam, legacyWriterOf(liam, "Sofia"))[0];
+    const q = await askAbout(liam, [old.w, old.s], "amount", TODAY);
+    await receive(await link(liam, key), key, sofia);
+    await expect(acceptDispute(sofia, [q.w, q.s], { a: 1 })).rejects.toMatchObject({ code: "not-allowed" });
+    await acceptDispute(sofia, [q.w, q.s], {}, TODAY);   // acknowledging without a change is fine
+    expect(openDisputes(sofia)).toHaveLength(0);
+  });
+
+  it("'start fresh' also drops adjustments tied to converted entries", async () => {
+    const { sofia, liam, key } = await synced();
+    const old = logOf(liam, legacyWriterOf(liam, "Sofia"))[0];
+    await notMe(liam, [old.w, old.s], TODAY);
+    await setFreshStart(liam, true, TODAY);
+    expect(Object.values(balance(liam)).every(v => v === 0)).toBe(true);
+    await receive(await link(liam, key), key, sofia);
+    expect(Object.values(balance(sofia)).every(v => v === 0)).toBe(true);
   });
 
   it("bringing the device data in again adds only what's new", async () => {

@@ -1,139 +1,186 @@
-// Schplitz v2 prototype — link format (docs/v2.0.md §3.4).
+// Schplitz v2 prototype — link format (docs/v2.0.md §3.4; payload fields in schema.js).
 //
-//   #s=5.<tallyId>.<question>.<iv + AES-256-GCM(deflate(payload))>
+//   https://schplitz.com/#s=5.<tallyId>.<question>.<iv + AES-256-GCM(deflate(payload JSON))>
 //
-// The header (version, tallyId, question) is readable so a phone can route the
-// link and show the question before decrypting. It's bound to the ciphertext as
-// additional authenticated data, so it can't be swapped onto another payload.
-import { normalizeAnswer, PBKDF2_ITERS } from "../utils.js";
-import { WINDOW_DAYS, WINDOW_MIN, dayNumber, entryKey, openDisputes, FLAG_LEGACY, FLAG_PROVISIONAL } from "./tally.js";
+// Everything after `#` stays on the phone: browsers don't send it to the server.
+// The header (version, tally ID, question) is readable so a phone can route the link
+// and show the question before decrypting. It's bound to the ciphertext as additional
+// authenticated data, so it can't be altered or moved onto another payload.
+
+import { normalizeAnswer } from "../utils.js";
+import { WINDOW_DAYS, WINDOW_MIN, dayNumber, allEntries, entryOf, openDisputes } from "./tally.js";
+import { SchplitzError, TALLY_ID, checkPayload, FLAG_LEGACY, FLAG_PROVISIONAL } from "./schema.js";
+import { deflate, inflate, fromBase64Url, fromHex, toBase64Url, toHex, utf8 } from "./encoding.js";
 
 export const LINK_VERSION = 5;
-export const LINK_BUDGET  = 2000;
+export const LINK_BUDGET = 2000;               // chars; fits chat apps and a QR code
+export const MAX_PAYLOAD_BYTES = 8_000_000;    // decompressed; a full copy of a very large tally
+export const KDF_ITERATIONS = 600_000;         // PBKDF2-SHA256, OWASP 2023. Runs once per tally.
+export const DEFAULT_ORIGIN = "https://schplitz.com";
 
-const b64url = (bytes) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-const fromB64url = (s) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
-const hexToBytes = (hex) => Uint8Array.from(hex.match(/../g), h => parseInt(h, 16));
-const bytesToHex = (b) => Array.from(b, x => x.toString(16).padStart(2, "0")).join("");
-
-async function pipe(bytes, stream) {
-  return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer());
-}
-
-// Derived once per tally and kept as a non-extractable key (docs §4).
+/**
+ * The tally's encryption key: derived once when joining and kept as a non-extractable
+ * CryptoKey, so the answer is typed once per tally (docs §4).
+ */
 export async function deriveKey(answer, tallyId) {
-  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(normalizeAnswer(answer)), "PBKDF2", false, ["deriveKey"]);
+  if (!TALLY_ID.test(tallyId)) throw new SchplitzError("invalid-input", "Invalid tally ID");
+  const base = await crypto.subtle.importKey("raw", utf8(normalizeAnswer(answer)), "PBKDF2", false, ["deriveKey"]);
   return crypto.subtle.deriveKey(
-    { name: "PBKDF2", salt: hexToBytes(tallyId), iterations: PBKDF2_ITERS, hash: "SHA-256" },
+    { name: "PBKDF2", salt: fromHex(tallyId), iterations: KDF_ITERATIONS, hash: "SHA-256" },
     base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
 }
 
-// ─── which entries travel: the correction window ─────────────────────────────
+// ─── which entries travel: the correction window (docs §3.4) ─────────────────
 
+// Order entries by the day they were written, then writer, then seq.
+const byAge = (a, b) => a.d - b.d || (a.w < b.w ? -1 : a.w > b.w ? 1 : a.s - b.s);
+const keyOf = (e) => `${e.w}:${e.s}`;
+
+/**
+ * The entries a normal link carries: everything written in the last 30 days, at
+ * least the last 20, every open dispute with its payment, and whatever an included
+ * entry refers to. `pinned`: entries that must never be left out to fit the budget.
+ */
 export function selectWindow(tally, today = dayNumber()) {
-  const all = Object.values(tally.entries);
+  const all = allEntries(tally).sort(byAge);
   const keep = new Map();
-  const add = (e) => e && keep.set(entryKey(e.w, e.s), e);
-  const byKey = (w, s) => tally.entries[entryKey(w, s)];
+  const add = (e) => { if (e) keep.set(keyOf(e), e); };
 
   all.filter(e => e.d >= today - WINDOW_DAYS).forEach(add);
-  [...all].sort((a, b) => b.d - a.d || (entryKey(b.w, b.s) > entryKey(a.w, a.s) ? 1 : -1)).slice(0, WINDOW_MIN).forEach(add);
+  all.slice(-WINDOW_MIN).forEach(add);
   const open = openDisputes(tally);
   open.forEach(add);
 
-  // Whatever an included entry refers to travels with it.
   for (const e of [...keep.values()]) {
-    if (e.t === "edit" || e.t === "void") add(byKey(e.w, e.r));
-    if (e.t === "notme" || e.t === "query") add(byKey(...e.r));
-    if (e.t === "resolve") { const d = byKey(...e.r); add(d); if (d) add(byKey(...d.r)); }
+    if (e.t === "edit" || e.t === "void") add(entryOf(tally, e.w, e.r));
+    else if (e.t === "notme" || e.t === "query") add(entryOf(tally, ...e.r));
+    else if (e.t === "resolve") { const d = entryOf(tally, ...e.r); add(d); if (d) add(entryOf(tally, ...d.r)); }
   }
-  const pinned = new Set();
-  for (const d of open) { pinned.add(entryKey(d.w, d.s)); pinned.add(entryKey(...d.r)); }
+  const pinned = new Set(open.flatMap(d => [keyOf(d), `${d.r[0]}:${d.r[1]}`]));
   return { entries: [...keep.values()], pinned };
 }
 
 // ─── encoding ────────────────────────────────────────────────────────────────
 
 function payloadOf(tally, entries) {
-  return {
-    cur: tally.currency, ae: tally.aboutEven,
-    m: tally.members.map(m => [m.id, m.name]),
-    w: Object.fromEntries(Object.entries(tally.writers)
-      .filter(([, x]) => x.summary.s > 0)
-      .map(([w, { member, legacy, provisional, summary: { s, h, n, c, f } }]) =>
-        [w, [member, s, h, n, c, f ?? 0, (legacy ? FLAG_LEGACY : 0) | (provisional ? FLAG_PROVISIONAL : 0)]])),
-    e: entries,
-  };
+  const w = {};
+  for (const [id, { member, legacy, provisional, summary }] of Object.entries(tally.writers)) {
+    if (summary.s === 0) continue;
+    const fl = (legacy ? FLAG_LEGACY : 0) | (provisional ? FLAG_PROVISIONAL : 0);
+    w[id] = { m: member, ...summary, ...(fl ? { fl } : {}) };
+  }
+  return { cur: tally.currency, ae: tally.aboutEven, m: tally.members.map(m => [m.id, m.name]), w, e: entries };
 }
+
+const headerOf = (tally) => `${LINK_VERSION}.${toBase64Url(fromHex(tally.id))}.${toBase64Url(utf8(tally.question))}`;
 
 async function seal(tally, key, payload, origin) {
-  const header = `${LINK_VERSION}.${b64url(hexToBytes(tally.id))}.${b64url(new TextEncoder().encode(tally.question))}`;
+  const header = headerOf(tally);
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const plain = await pipe(new TextEncoder().encode(JSON.stringify(payload)), new CompressionStream("deflate-raw"));
-  const ct = new Uint8Array(await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv, additionalData: new TextEncoder().encode(header) }, key, plain));
-  const body = new Uint8Array(12 + ct.length); body.set(iv); body.set(ct, 12);
-  return `${origin}/#s=${header}.${b64url(body)}`;
+  const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv, additionalData: utf8(header) }, key, await deflate(utf8(JSON.stringify(payload)))));
+  const body = new Uint8Array(iv.length + ciphertext.length);
+  body.set(iv);
+  body.set(ciphertext, iv.length);
+  return `${origin}/#s=${header}.${toBase64Url(body)}`;
 }
 
-// Builds the link. If it's over budget, the oldest entries that aren't part of an
-// open dispute are left out until it fits. The summaries are never left out, so
-// the balance in the link is always exact.
-// full: every entry, no window and no budget. Used for the first sync of a converted
-// v1 tally and for full-copy files.
-// includeProvisional: also send copies of other people's old histories as entries,
-// for "Send full copy" to a phone that lost its data.
-export async function encodeLink(tally, key, { today = dayNumber(), budget = LINK_BUDGET, origin = "https://schplitz.com", full = false, includeProvisional = false } = {}) {
+/**
+ * Builds a link. Returns { url, length, entries, dropped, fitsBudget }.
+ *
+ * Normal links carry every summary plus the correction window. If that's over budget,
+ * the oldest entries that aren't pinned are left out until it fits; summaries are never
+ * left out, so the balance is always exact. `fitsBudget` is false when even that isn't
+ * enough (then send a full copy as a file).
+ *
+ * Options:
+ *   full                every entry, no window, no budget: the first sync of a converted
+ *                       v1 tally, and full-copy files. Other people's provisional v1
+ *                       copies travel as ID lists only…
+ *   includeProvisional  …unless this is set ("Send full copy" to a phone that lost its data).
+ */
+export async function encodeLink(tally, key, {
+  today = dayNumber(), budget = LINK_BUDGET, origin = DEFAULT_ORIGIN, full = false, includeProvisional = false,
+} = {}) {
+  const result = (url, entries, dropped) => ({ url, length: url.length, entries, dropped, fitsBudget: url.length <= budget });
+
   if (full) {
-    // Someone's provisional copy of another person's old history only matters for
-    // spotting differences, so it travels as a list of v1 IDs, not as entries.
-    const provisional = includeProvisional ? [] : Object.entries(tally.writers).filter(([, x]) => x.provisional).map(([w]) => w);
-    const all = Object.values(tally.entries).filter(e => !provisional.includes(e.w));
-    const payload = payloadOf(tally, all);
-    if (provisional.length) payload.pl = Object.fromEntries(provisional.map(w =>
-      [w, Object.values(tally.entries).filter(e => e.w === w && e.l).map(e => e.l)]));
-    const url = await seal(tally, key, payload, origin);
-    return { url, length: url.length, entries: all.length, dropped: 0, fitsBudget: url.length <= budget };
+    const asLists = includeProvisional ? [] : Object.keys(tally.writers).filter(w => tally.writers[w].provisional && tally.writers[w].summary.s > 0);
+    const entries = allEntries(tally).filter(e => !asLists.includes(e.w)).sort(byAge);
+    const payload = payloadOf(tally, entries);
+    if (asLists.length) payload.pl = Object.fromEntries(asLists.map(w =>
+      [w, Object.values(tally.logs[w] ?? {}).map(e => e.l).filter(Boolean)]));
+    return result(await seal(tally, key, payload, origin), entries.length, 0);
   }
+
   const { entries, pinned } = selectWindow(tally, today);
-  const droppable = entries.filter(e => !pinned.has(entryKey(e.w, e.s))).sort((a, b) => a.d - b.d || a.s - b.s);
+  const droppable = entries.filter(e => !pinned.has(keyOf(e))).sort(byAge);
   const build = async (drop) => {
-    const gone = new Set(droppable.slice(0, drop).map(e => entryKey(e.w, e.s)));
-    const kept = entries.filter(e => !gone.has(entryKey(e.w, e.s)));
-    const url = await seal(tally, key, payloadOf(tally, kept), origin);
-    return { url, length: url.length, entries: kept.length, dropped: drop };
+    const gone = new Set(droppable.slice(0, drop).map(keyOf));
+    const kept = entries.filter(e => !gone.has(keyOf(e)));
+    return result(await seal(tally, key, payloadOf(tally, kept), origin), kept.length, drop);
   };
+
   const all = await build(0);
-  if (all.length <= budget) return all;
-  // Fewest dropped entries that fit. Compression makes size only roughly monotonic,
-  // so the result is checked again below.
+  if (all.fitsBudget || !droppable.length) return all;
+  // Fewest left-out entries that fit. Compressed size is only roughly monotonic in
+  // the number of entries, so step forward from the search result until it fits.
   let lo = 1, hi = droppable.length;
   while (lo < hi) {
     const mid = (lo + hi) >> 1;
-    if ((await build(mid)).length <= budget) hi = mid; else lo = mid + 1;
+    if ((await build(mid)).fitsBudget) hi = mid; else lo = mid + 1;
   }
-  return build(lo);
+  let best = await build(lo);
+  while (!best.fitsBudget && lo < droppable.length) best = await build(++lo);
+  return best;
 }
 
 // ─── decoding ────────────────────────────────────────────────────────────────
 
+const LINK = /#s=(\d+)\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]*)\.([A-Za-z0-9_-]+)$/;
+
+/** Reads the readable part of a link: no key needed. Throws SchplitzError. */
 export function readHeader(url) {
-  const m = /#s=(\d+)\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]*)\.([A-Za-z0-9_-]+)$/.exec(url);
-  if (!m) throw new Error("Not a Schplitz v2 link");
-  const [, version, id, q, body] = m;
-  if (Number(version) !== LINK_VERSION) throw new Error(`Unsupported link version ${version}`);
-  return {
-    version: Number(version), tallyId: bytesToHex(fromB64url(id)),
-    question: new TextDecoder().decode(fromB64url(q)),
-    aad: `${version}.${id}.${q}`, body,
-  };
+  const m = LINK.exec(String(url).trim());
+  if (!m) throw new SchplitzError("not-a-link", "Not a Schplitz link");
+  const [, version, id, question, body] = m;
+  if (Number(version) !== LINK_VERSION) throw new SchplitzError("unsupported-version", `Unsupported link version ${version}`);
+  let tallyId, text;
+  try {
+    tallyId = toHex(fromBase64Url(id));
+    text = new TextDecoder("utf-8", { fatal: true }).decode(fromBase64Url(question));
+  } catch {
+    throw new SchplitzError("not-a-link", "Damaged link");
+  }
+  if (!TALLY_ID.test(tallyId)) throw new SchplitzError("not-a-link", "Damaged link");
+  return { version: Number(version), tallyId, question: text, aad: `${version}.${id}.${question}`, body };
 }
 
+/**
+ * Decrypts and validates a link. Throws SchplitzError:
+ *   cannot-decrypt   wrong answer, or the link was altered or cut off
+ *   too-large        decompresses beyond MAX_PAYLOAD_BYTES
+ *   invalid-payload  decrypted, but the content isn't valid
+ */
 export async function decodeLink(url, key) {
-  const h = readHeader(url);
-  const raw = fromB64url(h.body);
-  const plain = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: raw.slice(0, 12), additionalData: new TextEncoder().encode(h.aad) }, key, raw.slice(12));
-  const payload = JSON.parse(new TextDecoder().decode(await pipe(new Uint8Array(plain), new DecompressionStream("deflate-raw"))));
-  return { header: h, payload };
+  const header = readHeader(url);
+  let plain;
+  try {
+    const raw = fromBase64Url(header.body);
+    plain = new Uint8Array(await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: raw.subarray(0, 12), additionalData: utf8(header.aad) }, key, raw.subarray(12)));
+  } catch {
+    throw new SchplitzError("cannot-decrypt", "Wrong answer, or the link is damaged");
+  }
+  let json;
+  try {
+    json = new TextDecoder("utf-8", { fatal: true }).decode(await inflate(plain, MAX_PAYLOAD_BYTES));
+  } catch (err) {
+    throw err instanceof RangeError
+      ? new SchplitzError("too-large", "The link's content is too large")
+      : new SchplitzError("invalid-payload", "The link's content can't be read");
+  }
+  let payload;
+  try { payload = JSON.parse(json); } catch { throw new SchplitzError("invalid-payload", "The link's content can't be read"); }
+  return { header, payload: checkPayload(payload) };
 }

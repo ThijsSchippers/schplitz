@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 import {
   createTally, joinTally, mergePayload, addPayment, editPayment, voidPayment, addPaidBack,
   notMe, askAbout, acceptDispute, keepAsIs, openDisputes, balance, whoseTurn, usualAmount,
-  socialUnits, verify, split, MAX_MEMBERS,
+  socialUnits, verify, split, allEntries, MAX_MEMBERS,
 } from "../tally.js";
 import { deriveKey, encodeLink, decodeLink, readHeader, selectWindow, LINK_BUDGET } from "../link.js";
 
@@ -34,7 +34,7 @@ async function group(names, me = names[0]) {
   const first = createTally({ question: "Club name?", names, me });
   const key = await deriveKey("smash", first.id);
   const phones = { [me]: first };
-  for (const n of names.filter(n => n !== me)) phones[n] = (await open(await send(first, key), key, null, n)).tally;
+  for (const name of names.filter(other => other !== me)) phones[name] = (await open(await send(first, key), key, null, name)).tally;
   return { phones, key };
 }
 
@@ -49,7 +49,7 @@ describe("money", () => {
 describe("pair basics", () => {
   it("a shared coffee puts the other person behind", async () => {
     const { sofia } = await pair();
-    await addPayment(sofia, { category: COFFEE, amount: 740, day: TODAY });
+    await addPayment(sofia, { category: COFFEE, amount: 740, at: TODAY });
     const b = balance(sofia);
     expect(b[memberId(sofia, "Sofia")]).toBe(370);
     expect(b[memberId(sofia, "Liam")]).toBe(-370);
@@ -58,15 +58,15 @@ describe("pair basics", () => {
 
   it("says 'about even' only below €5", async () => {
     const { sofia } = await pair();
-    await addPayment(sofia, { category: MEALS, amount: 998, day: TODAY });
+    await addPayment(sofia, { category: MEALS, amount: 998, at: TODAY });
     expect(whoseTurn(sofia).aboutEven).toBe(true);     // 4.99 behind
-    await addPayment(sofia, { category: COFFEE, amount: 2, day: TODAY });
+    await addPayment(sofia, { category: COFFEE, amount: 2, at: TODAY });
     expect(whoseTurn(sofia).aboutEven).toBe(false);    // 5.00 behind
   });
 
   it("only lets you change your own payments", async () => {
     const { sofia, liam, key } = await pair();
-    await addPayment(sofia, { category: COFFEE, amount: 500, day: TODAY });
+    await addPayment(sofia, { category: COFFEE, amount: 500, at: TODAY });
     await open(await send(sofia, key), key, liam);
     await expect(editPayment(liam, 1, { a: 1, v: 1 })).rejects.toThrow(/own payments/);
     await editPayment(sofia, 1, { a: 800, v: 800 }, TODAY);
@@ -77,23 +77,23 @@ describe("pair basics", () => {
 
   it("records a paid-back transfer", async () => {
     const { sofia } = await pair();
-    await addPayment(sofia, { category: STAYS, amount: 20000, day: TODAY });
-    await addPaidBack(sofia, { from: memberId(sofia, "Liam"), to: memberId(sofia, "Sofia"), value: 10000, day: TODAY });
+    await addPayment(sofia, { category: STAYS, amount: 20000, at: TODAY });
+    await addPaidBack(sofia, { from: memberId(sofia, "Liam"), to: memberId(sofia, "Sofia"), value: 10000, at: TODAY });
     expect(balance(sofia)[memberId(sofia, "Liam")]).toBe(0);
   });
 
   it("keeps foreign amounts and locks the tally-currency value", async () => {
     const { sofia } = await pair();
-    await addPayment(sofia, { category: MEALS, amount: 124000, currency: "THB", value: 3260, day: TODAY });
+    await addPayment(sofia, { category: MEALS, amount: 124000, currency: "THB", value: 3260, at: TODAY });
     expect(balance(sofia)[memberId(sofia, "Liam")]).toBe(-1630);
-    await expect(addPayment(sofia, { category: MEALS, amount: 100, currency: "USD", day: TODAY })).rejects.toThrow(/tally currency/);
+    await expect(addPayment(sofia, { category: MEALS, amount: 100, currency: "USD", at: TODAY })).rejects.toThrow(/tally currency/);
   });
 });
 
 describe("links", () => {
   it("round-trip: the other phone ends up with the same balance", async () => {
     const { sofia, liam, key } = await pair();
-    await addPayment(sofia, { category: DRINKS, amount: 2400, day: TODAY });
+    await addPayment(sofia, { category: DRINKS, amount: 2400, at: TODAY });
     const { report } = await open(await send(sofia, key), key, liam);
     expect(balance(liam)).toEqual(balance(sofia));
     expect(report.involvingMe).toHaveLength(1);
@@ -114,18 +114,21 @@ describe("links", () => {
     await expect(decodeLink(url, await deriveKey(" LIS bon ", sofia.id))).resolves.toBeTruthy();
   });
 
-  it("rejects a header swapped onto another tally's payload", async () => {
+  it("rejects a link whose readable question was changed", async () => {
     const { sofia, key } = await pair();
     const url = await send(sofia, key);
-    const forged = url.replace(/Where|V2hlcm/, "X");
-    await expect(decodeLink(forged, key)).rejects.toThrow();
+    const h = readHeader(url);
+    const otherQuestion = Buffer.from("Where did we first meet?").toString("base64url");
+    const forged = url.replace(`.${h.aad.split(".")[2]}.`, `.${otherQuestion}.`);
+    expect(readHeader(forged).question).toBe("Where did we first meet?");
+    await expect(decodeLink(forged, key)).rejects.toMatchObject({ code: "cannot-decrypt" });
   });
 
   it("order doesn't matter, and opening a link twice changes nothing", async () => {
     const { sofia, liam, key } = await pair();
-    await addPayment(sofia, { category: COFFEE, amount: 600, day: TODAY });
+    await addPayment(sofia, { category: COFFEE, amount: 600, at: TODAY });
     const first = await send(sofia, key);
-    await addPayment(sofia, { category: MEALS, amount: 4000, day: TODAY });
+    await addPayment(sofia, { category: MEALS, amount: 4000, at: TODAY });
     const second = await send(sofia, key);
     await open(second, key, liam);
     await open(first, key, liam);   // an old link can't roll anything back
@@ -135,8 +138,8 @@ describe("links", () => {
 
   it("both add at the same time: after swapping links, both phones agree", async () => {
     const { sofia, liam, key } = await pair();
-    await addPayment(sofia, { category: COFFEE, amount: 640, day: TODAY });
-    await addPayment(liam, { category: DRINKS, amount: 1800, day: TODAY });
+    await addPayment(sofia, { category: COFFEE, amount: 640, at: TODAY });
+    await addPayment(liam, { category: DRINKS, amount: 1800, at: TODAY });
     const fromSofia = await send(sofia, key), fromLiam = await send(liam, key);
     await open(fromLiam, key, sofia);
     await open(fromSofia, key, liam);
@@ -149,7 +152,7 @@ describe("links", () => {
   it("a pair's link stays small after years of use", async () => {
     const { sofia, key } = await pair();
     for (let i = 0; i < 500; i++)
-      await addPayment(sofia, { category: [COFFEE, DRINKS, MEALS][i % 3], amount: 300 + i, day: TODAY - 1500 + i * 3 });
+      await addPayment(sofia, { category: [COFFEE, DRINKS, MEALS][i % 3], amount: 300 + i, at: TODAY - 1500 + i * 3 });
     const { length } = await encodeLink(sofia, key, { today: TODAY });
     expect(length).toBeLessThan(1100);
   });
@@ -159,8 +162,8 @@ describe("the chat is the database", () => {
   it("a wiped phone gets the exact balance back from the latest link", async () => {
     const { sofia, liam, key } = await pair();
     for (let i = 0; i < 60; i++) {
-      await addPayment(sofia, { category: COFFEE, amount: 500, day: TODAY - 120 + i * 2 });
-      await addPayment(liam, { category: DRINKS, amount: 1700, day: TODAY - 119 + i * 2 });
+      await addPayment(sofia, { category: COFFEE, amount: 500, at: TODAY - 120 + i * 2 });
+      await addPayment(liam, { category: DRINKS, amount: 1700, at: TODAY - 119 + i * 2 });
     }
     await open(await send(liam, key), key, sofia);
     const expected = balance(sofia);
@@ -174,9 +177,9 @@ describe("the chat is the database", () => {
     expect(restored.me.writer).not.toBe(liam.me.writer);   // a restored phone writes as a new writer
 
     // Recent history is back line by line; older entries aren't.
-    const days = Object.values(restored.entries).map(e => e.d);
+    const days = allEntries(restored).map(e => e.d);
     expect(Math.min(...days)).toBeGreaterThanOrEqual(TODAY - 30 - 20);
-    expect(Object.keys(restored.entries).length).toBeGreaterThanOrEqual(20);
+    expect(allEntries(restored).length).toBeGreaterThanOrEqual(20);
   });
 
   it("over budget, older entries are left out but the balance stays exact", async () => {
@@ -184,7 +187,7 @@ describe("the chat is the database", () => {
     const { phones, key } = await group(names);
     const ana = phones.Ana;
     for (let i = 0; i < 120; i++)
-      await addPayment(ana, { category: [MEALS, DRINKS, COFFEE][i % 3], amount: 1000 + i, day: TODAY - 6 + (i % 7),
+      await addPayment(ana, { category: [MEALS, DRINKS, COFFEE][i % 3], amount: 1000 + i, at: TODAY - 6 + (i % 7),
         participants: ana.members.slice(0, 2 + (i % 9)).map(m => m.id) });
     const r = await encodeLink(ana, key, { today: TODAY });
     expect(r.length).toBeLessThanOrEqual(LINK_BUDGET);
@@ -203,7 +206,7 @@ describe("corrections and disputes", () => {
   async function jessysDinner() {
     const { phones, key } = await group(["Jessy", "Sofia", "Liam", "Noor"]);
     const jessy = phones.Jessy;
-    const pay = await addPayment(jessy, { category: MEALS, amount: 10000, day: TODAY });
+    const pay = await addPayment(jessy, { category: MEALS, amount: 10000, at: TODAY });
     const url = await send(jessy, key);
     for (const n of ["Sofia", "Liam", "Noor"]) await open(url, key, phones[n]);
     return { phones, key, ref: [pay.w, pay.s] };
@@ -211,7 +214,7 @@ describe("corrections and disputes", () => {
 
   it("lists new payments that include you when a link arrives", async () => {
     const { phones, key } = await group(["Jessy", "Sofia", "Liam"]);
-    await addPayment(phones.Jessy, { category: MEALS, amount: 10000, day: TODAY });
+    await addPayment(phones.Jessy, { category: MEALS, amount: 10000, at: TODAY });
     const { report } = await open(await send(phones.Jessy, key), key, phones.Sofia);
     expect(report.involvingMe.map(e => e.v)).toEqual([10000]);
   });
@@ -287,8 +290,8 @@ describe("corrections and disputes", () => {
 
   it("an open dispute travels in every link, however old", async () => {
     const { phones, key } = await group(["Jessy", "Sofia"]);
-    const old = await addPayment(phones.Jessy, { category: MEALS, amount: 5000, day: TODAY - 200 });
-    for (let i = 0; i < 40; i++) await addPayment(phones.Jessy, { category: COFFEE, amount: 300, day: TODAY - 100 + i });
+    const old = await addPayment(phones.Jessy, { category: MEALS, amount: 5000, at: TODAY - 200 });
+    for (let i = 0; i < 40; i++) await addPayment(phones.Jessy, { category: COFFEE, amount: 300, at: TODAY - 100 + i });
     await open(await send(phones.Jessy, key, { today: TODAY - 199 }), key, phones.Sofia);  // Sofia saw it back then
     await notMe(phones.Sofia, [old.w, old.s], TODAY);
     const { entries } = selectWindow(phones.Sofia, TODAY);
@@ -300,25 +303,25 @@ describe("corrections and disputes", () => {
 describe("window and suggestions", () => {
   it("sends the last 30 days, and at least 20 entries", async () => {
     const { sofia } = await pair();
-    for (let i = 0; i < 50; i++) await addPayment(sofia, { category: COFFEE, amount: 300, day: TODAY - 200 + i });
+    for (let i = 0; i < 50; i++) await addPayment(sofia, { category: COFFEE, amount: 300, at: TODAY - 200 + i });
     expect(selectWindow(sofia, TODAY).entries).toHaveLength(20);
-    for (let i = 0; i < 25; i++) await addPayment(sofia, { category: COFFEE, amount: 300, day: TODAY - 25 + i });
+    for (let i = 0; i < 25; i++) await addPayment(sofia, { category: COFFEE, amount: 300, at: TODAY - 25 + i });
     expect(selectWindow(sofia, TODAY).entries).toHaveLength(25);
   });
 
   it("suggests a usual amount, except for Stays and Tickets", async () => {
     const { sofia } = await pair();
-    await addPayment(sofia, { category: COFFEE, amount: 700, day: TODAY });
-    await addPayment(sofia, { category: COFFEE, amount: 780, day: TODAY });
-    await addPayment(sofia, { category: STAYS, amount: 24000, day: TODAY });
+    await addPayment(sofia, { category: COFFEE, amount: 700, at: TODAY });
+    await addPayment(sofia, { category: COFFEE, amount: 780, at: TODAY });
+    await addPayment(sofia, { category: STAYS, amount: 24000, at: TODAY });
     expect(usualAmount(sofia, COFFEE)).toBe(740);
     expect(usualAmount(sofia, STAYS)).toBeNull();
   });
 
   it("expresses a balance in the tally's own categories", async () => {
     const { sofia } = await pair();
-    for (let i = 0; i < 5; i++) await addPayment(sofia, { category: DRINKS, amount: 2000, day: TODAY });
-    await addPayment(sofia, { category: COFFEE, amount: 400, day: TODAY });
+    for (let i = 0; i < 5; i++) await addPayment(sofia, { category: DRINKS, amount: 2000, at: TODAY });
+    await addPayment(sofia, { category: COFFEE, amount: 400, at: TODAY });
     expect(socialUnits(sofia, 4000)).toEqual({ category: DRINKS, units: 2 });
   });
 });
@@ -326,10 +329,10 @@ describe("window and suggestions", () => {
 describe("integrity", () => {
   it("notices when a received history doesn't match its summary", async () => {
     const { sofia, liam, key } = await pair();
-    await addPayment(sofia, { category: COFFEE, amount: 500, day: TODAY });
+    await addPayment(sofia, { category: COFFEE, amount: 500, at: TODAY });
     await open(await send(sofia, key), key, liam);
     expect(await verify(liam)).toEqual([]);
-    Object.values(liam.entries)[0].v = 50_000;   // tampered or corrupted copy
+    allEntries(liam)[0].v = 50_000;   // tampered or corrupted copy
     expect(await verify(liam)).toEqual([sofia.me.writer]);
   });
 });
