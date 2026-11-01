@@ -19,7 +19,7 @@ import Details from "./Details.jsx";
 import { ShareSheet, Review, SortOld, FullCopySheet } from "./Sheets.jsx";
 import { browserKind } from "./environment.js";
 import { USED_KEY } from "./visits.js";
-import { S } from "./theme.js";
+import { S, GLOBAL_CSS } from "./theme.js";
 
 const TOAST_MS = 3200;
 
@@ -328,6 +328,7 @@ export default function App({ rateFor = defaultRate, cacheName, firstView = "hom
 
   return (
     <div style={S.page}>
+      <style>{GLOBAL_CSS}</style>
       <Toast toast={toast} />
       <main style={S.column}>
         {BROWSER.inApp !== null && view.name !== "loading" && <InAppHint app={BROWSER.inApp} onCopy={copyCurrentLink} />}

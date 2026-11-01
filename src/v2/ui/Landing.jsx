@@ -86,7 +86,6 @@ const CSS = `
 .ld-problems { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; max-width: 1100px; margin: 48px auto 0; padding: 0 clamp(16px, 4vw, 40px); }
 .ld-problem { display: flex; flex-direction: column; border-radius: 32px; overflow: hidden; background: var(--cream); color: var(--cream); text-align: left; box-shadow: 0 14px 36px rgba(27,42,85,.12); }
 .ld-problem-pic { position: relative; aspect-ratio: 4 / 4.2; overflow: hidden; }
-.ld-problem small { display: block; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--mist); margin-bottom: 6px; }
 .ld-instead { margin: 0; flex: 1; display: flex; gap: 10px; align-items: flex-start; padding: 18px 22px 22px; color: var(--ink); font-size: 15px; line-height: 1.45; }
 .ld-instead b { color: var(--deep); }
 .ld-instead svg { width: 22px; height: 22px; flex-shrink: 0; padding: 3px; border-radius: 50%; background: var(--deep); color: var(--cream); }
@@ -311,7 +310,7 @@ export default function Landing({ onOpen }) {
               <article className="ld-problem" key={title} data-reveal>
                 <div className="ld-problem-pic">
                   <img src={src} alt="" loading="lazy" />
-                  <div><small>Other apps</small><h3>{title}</h3><p>{body}</p></div>
+                  <div><h3>{title}</h3><p>{body}</p></div>
                 </div>
                 <p className="ld-instead"><Svg name="check" /><span><b>Schplitz:</b> {instead}</span></p>
               </article>

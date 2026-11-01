@@ -15,12 +15,12 @@ function Lean({ tally }) {
   const other = tally.members.find(m => m.id !== tally.me.member).name;
   return (
     <div aria-hidden="true" style={{ marginTop: 14 }}>
-      <div style={{ position: "relative", height: 6, background: C.field, borderRadius: 3 }}>
-        <div style={{ position: "absolute", left: "50%", top: -3, width: 2, height: 12, background: C.fieldBorder }} />
-        <div style={{ position: "absolute", top: 0, height: 6, borderRadius: 3, background: C.accent,
+      <div style={{ position: "relative", height: 6, background: "rgba(214,226,255,.22)", borderRadius: 3 }}>
+        <div style={{ position: "absolute", left: "50%", top: -3, width: 2, height: 12, background: C.mist }} />
+        <div style={{ position: "absolute", top: 0, height: 6, borderRadius: 3, background: C.butter,
           left: lean < 0 ? "50%" : `${50 - lean * 50}%`, width: `${Math.abs(lean) * 50}%` }} />
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.muted, marginTop: 6 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.mist, marginTop: 6 }}>
         <span>You</span><span>{other}</span>
       </div>
     </div>
@@ -35,7 +35,7 @@ function WhosHere({ tally, present, onChange }) {
   };
   return (
     <div>
-      <p style={{ ...S.muted, marginBottom: 6 }}>Who's here today?</p>
+      <p style={{ ...S.muted, marginBottom: 8, color: C.mist }}>Who's here today?</p>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         {tally.members.map(m => (
           <Chip key={m.id} on={present.includes(m.id)} onClick={() => toggle(m.id)}>{m.id === tally.me.member ? "You" : m.name}</Chip>
@@ -73,9 +73,9 @@ export default function TallyView({ tally, present, onPresent, backupDue, onBack
         </section>
       )}
 
-      <section style={{ ...S.card, padding: "22px 18px" }}>
-        <p style={{ ...S.h1, fontSize: 28 }}>{h.title}</p>
-        <p style={{ ...S.muted, fontSize: 15, marginTop: 6, color: C.soft }}>{h.sub}</p>
+      <section style={S.heroCard}>
+        <p style={{ ...S.h1, fontSize: 30 }}>{h.title}</p>
+        <p style={{ ...S.muted, fontSize: 15, marginTop: 6, color: C.mist }}>{h.sub}</p>
         {group ? <div style={{ marginTop: 14 }}><WhosHere tally={tally} present={present} onChange={onPresent} /></div> : <Lean tally={tally} />}
       </section>
 

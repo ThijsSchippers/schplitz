@@ -16,9 +16,9 @@ export function Icon({ name, size = 24, style }) {
 }
 
 const BUTTON = {
-  base: { border: "none", borderRadius: 12, padding: "13px 16px", fontSize: 15, fontWeight: 650, fontFamily: FONT, cursor: "pointer",
+  base: { border: "none", borderRadius: 100, padding: "14px 20px", fontSize: 15, fontWeight: 700, fontFamily: FONT, cursor: "pointer",
     display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%" },
-  primary: { background: C.accent, color: C.onAccent },
+  primary: { background: C.accent, color: C.onAccent, boxShadow: "0 6px 16px rgba(47,95,208,.25)" },
   secondary: { background: C.card, color: C.text, border: `1px solid ${C.cardBorder}` },
   ghost: { background: "transparent", color: C.soft, border: `1px solid ${C.fieldBorder}` },
   danger: { background: "transparent", color: C.danger, border: `1px solid ${C.danger}55` },
@@ -95,9 +95,9 @@ export function Sheet({ title, onClose, children }) {
   }, []);
   return (
     <div role="dialog" aria-modal="true" aria-label={title} onClick={onClose}
-      style={{ position: "fixed", inset: 0, background: "#000a", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 20 }}>
+      style={{ position: "fixed", inset: 0, background: "rgba(27,42,85,.45)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 20 }}>
       <div ref={panel} tabIndex={-1} onClick={e => e.stopPropagation()}
-        style={{ ...S.card, width: "100%", maxWidth: 480, borderRadius: "18px 18px 0 0", padding: "18px 16px 24px", display: "flex", flexDirection: "column", gap: 12, maxHeight: "90dvh", overflowY: "auto" }}>
+        style={{ ...S.card, width: "100%", maxWidth: 480, borderRadius: "28px 28px 0 0", padding: "20px 18px 26px", boxShadow: "0 -10px 40px rgba(27,42,85,.18)", display: "flex", flexDirection: "column", gap: 12, maxHeight: "90dvh", overflowY: "auto" }}>
         <div style={S.row}>
           <h2 style={{ ...S.h2, flex: 1, outline: "none" }}>{title}</h2>
           {onClose && <button type="button" onClick={onClose} aria-label="Close" style={{ ...ICON_BUTTON, color: C.muted }}><Icon name="close" /></button>}
@@ -113,8 +113,8 @@ export function Toast({ toast }) {
   return (
     <div role={toast.error ? "alert" : "status"} aria-live={toast.error ? "assertive" : "polite"}
       style={{ position: "fixed", top: 62, left: "50%", transform: "translateX(-50%)", zIndex: 30, maxWidth: "calc(100% - 32px)",
-        background: toast.error ? C.dangerFill : C.card, border: `1px solid ${toast.error ? C.dangerFill : C.cardBorder}`, color: C.text,
-        padding: "10px 16px", borderRadius: 12, fontSize: 14, boxShadow: "0 6px 24px #0008" }}>
+        background: toast.error ? C.dangerFill : C.navy, color: toast.error ? "#fff" : C.cream,
+        padding: "11px 18px", borderRadius: 100, fontSize: 14, fontWeight: 600, boxShadow: "0 10px 30px rgba(27,42,85,.3)" }}>
       {toast.text}
     </div>
   );
@@ -127,10 +127,10 @@ export function Tiles({ value, onChange }) {
     return (
       <button key={k} type="button" aria-pressed={on} aria-label={c.name} onClick={() => onChange(k)}
         style={{ aspectRatio: "1 / 1", background: on ? C.accentTint : C.field, border: `1px solid ${on ? C.accentBorder : C.fieldBorder}`,
-          borderRadius: 10, color: on ? C.accent : C.soft, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          borderRadius: 16, color: on ? C.accent : C.soft, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
           gap: 3, padding: 0, cursor: "pointer", fontFamily: FONT, minWidth: 0 }}>
         <Icon name={c.icon} size={24} />
-        <span style={{ fontSize: 10, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis" }}>{c.label}</span>
+        <span style={{ fontSize: 10, fontWeight: 600, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis" }}>{c.label}</span>
       </button>
     );
   };
@@ -140,7 +140,7 @@ export function Tiles({ value, onChange }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "clamp(4px, 1.5vw, 6px)" }}>{TILE_ORDER.map(tile)}</div>
       <button type="button" aria-pressed={otherOn} onClick={() => onChange(OTHER)}
         style={{ marginTop: 6, width: "100%", padding: 7, background: otherOn ? C.accentTint : "transparent", border: `1px dashed ${otherOn ? C.accentBorder : C.fieldBorder}`,
-          borderRadius: 9, color: otherOn ? C.accent : C.muted, fontSize: 12.5, display: "flex", gap: 6, alignItems: "center", justifyContent: "center", cursor: "pointer", fontFamily: FONT }}>
+          borderRadius: 100, color: otherOn ? C.accent : C.muted, fontSize: 12.5, fontWeight: 600, display: "flex", gap: 6, alignItems: "center", justifyContent: "center", cursor: "pointer", fontFamily: FONT }}>
         <Icon name="more_horiz" size={16} /> Something else
       </button>
     </div>
@@ -157,7 +157,7 @@ export function Numpad({ onKey, separator, decimalsAllowed }) {
       onPointerDown={k === "back" ? () => { stop(); timer.current = setTimeout(() => onKey("clear"), LONG_PRESS_MS); } : undefined}
       onPointerUp={k === "back" ? stop : undefined}
       onPointerLeave={k === "back" ? stop : undefined}
-      style={{ background: C.card, border: "none", borderRadius: 10, color: C.text, fontSize: 22, fontFamily: FONT, minHeight: 52,
+      style={{ background: C.card, border: `1px solid ${C.cardBorder}`, borderRadius: 18, color: C.text, fontSize: 22, fontWeight: 600, fontFamily: FONT, minHeight: 52,
         display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", opacity: k === "." && !decimalsAllowed ? 0.25 : 1 }}>
       {label}
     </button>
@@ -175,7 +175,7 @@ export function Numpad({ onKey, separator, decimalsAllowed }) {
 export function Chip({ on, children, ...rest }) {
   return (
     <button type="button" aria-pressed={on} {...rest}
-      style={{ padding: "6px 12px", borderRadius: 999, background: on ? C.accentTint : C.field, border: `1px solid ${on ? C.accentBorder : C.fieldBorder}`,
+      style={{ padding: "7px 13px", borderRadius: 999, background: on ? C.accentTint : C.field, border: `1px solid ${on ? C.accentBorder : C.fieldBorder}`,
         color: on ? C.accent : C.soft, fontSize: 13, fontWeight: 600, fontFamily: FONT, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
       {children}
     </button>
