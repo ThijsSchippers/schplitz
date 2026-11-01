@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.frankfurter.app; img-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self';" />
+    <!-- site-meta: Schplitz 1. Replaced by src/v2/site.js in the launch build (vite.config.js). -->
     <title>Schplitz · Private expense splitting</title>
 
     <!-- Primary meta -->
@@ -26,6 +27,7 @@
     <meta name="twitter:title"       content="Schplitz · Private expense splitting" />
     <meta name="twitter:description" content="Split costs with a friend without an account or a server. Everything is encrypted on your device with AES-256-GCM." />
     <meta name="twitter:image"       content="https://schplitz.com/images/sunset-couple.jpg" />
+    <!-- /site-meta -->
 <style>
       * {
         margin: 0;
@@ -50,6 +52,7 @@
     <script type="module" src="/src/main.jsx"></script>
 
     <!-- Fallback content for crawlers that do not execute JavaScript -->
+    <!-- site-noscript -->
     <noscript>
       <main>
         <h1>Schplitz: private expense splitting</h1>
@@ -78,5 +81,6 @@
         <p>Open Schplitz: <a href="https://schplitz.com/">schplitz.com</a></p>
       </main>
     </noscript>
+    <!-- /site-noscript -->
   </body>
 </html>

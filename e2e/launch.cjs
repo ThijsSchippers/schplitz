@@ -40,6 +40,10 @@ const LAUNCH = process.env.LAUNCH_BASE ?? "http://localhost:4174";
   const badge = await p.getByText("2 · preview").count();
   const manifest = await p.locator('link[rel="manifest"]').getAttribute("href");
   console.log(`launch build, /: Schplitz 2 | preview badge: ${badge ? "shown" : "hidden"} | manifest: ${manifest}`);
+  // What link previews and crawlers see (src/v2/site.js), and the default build keeping Schplitz 1's.
+  const title = await p.title(), llms = await (await fetch(`${LAUNCH}/llms.txt`)).text(), oldLlms = await (await fetch(`${DEFAULT_BASE}/llms.txt`)).text();
+  if (!title.includes("Split costs with friends") || !llms.includes("whose turn") || !oldLlms.includes("two people")) throw new Error(`site meta: ${title}`);
+  console.log(`launch build, /: title "${title}" | llms.txt describes Schplitz 2; default build keeps Schplitz 1's`);
 
   // An old Schplitz 1 link opens in Schplitz 2 and brings the tally in.
   await p.goto(oldLink);

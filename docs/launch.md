@@ -28,7 +28,7 @@ On Vercel: Project → Settings → Environment Variables → add `VITE_V2_AT_RO
   - *Install Schplitz* on Android
   - the backup reminder on Safari
 - [x] A v2 landing page (`src/v2/ui/Landing.jsx`). Newcomers see it at `/` and `/v2/`; people arriving with a link, or who already use Schplitz on that phone, go straight to the app (`Site.jsx`).
-- [ ] Update `index.html` meta and noscript text, and `public/llms.txt`, for Schplitz 2.
+- [x] Meta tags, noscript text and `llms.txt` for Schplitz 2: in `src/v2/site.js`, swapped in by the launch build (`vite.config.js`). The default build keeps Schplitz 1's, so rolling back restores them too.
 - [ ] Confirm the group "about even" rule (docs/v2.0.md §7).
 - [ ] Run everything:
   ```
