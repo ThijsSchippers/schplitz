@@ -131,3 +131,29 @@ describe("Schplitz 2 screens: groups", () => {
     expect(screen.getByText("Of the people here, Cas is furthest behind.")).toBeInTheDocument();
   }, 30_000);
 });
+
+describe("landing page", () => {
+  it("shows newcomers the landing page; Start a tally goes straight to the start screen", async () => {
+    const { default: Site } = await import("../ui/Site.jsx");
+    sessionStorage.clear();
+    const user = userEvent.setup();
+    render(<Site cacheName={`screens-${crypto.randomUUID()}`} rateFor={rateFor} />);
+    expect(screen.getByRole("heading", { level: 1, name: "Who's buying the next round?" })).toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: "Start a tally" })[0]);
+    expect(await screen.findByLabelText("Your name")).toBeInTheDocument();
+  });
+
+  it("skips the landing page for links, returning visitors and Schplitz 1 users", async () => {
+    const { skipLanding } = await import("../ui/Site.jsx");
+    const store = (data) => ({ getItem: (k) => data[k] ?? null });
+    const none = store({});
+    expect(skipLanding({ hash: "", local: none, session: none })).toBe(false);
+    expect(skipLanding({ hash: "#s=5.abc", local: none, session: none })).toBe(true);
+    expect(skipLanding({ hash: "#share=abc", local: none, session: none })).toBe(true);
+    expect(skipLanding({ hash: "", local: store({ schplitz2Used: "1" }), session: none })).toBe(true);
+    expect(skipLanding({ hash: "", local: store({ schplitzExpenses: "{}" }), session: none })).toBe(true);
+    expect(skipLanding({ hash: "", local: none, session: store({ schplitz2Opened: "1" }) })).toBe(true);
+    const broken = { getItem: () => { throw new Error("blocked"); } };
+    expect(skipLanding({ hash: "", local: broken, session: broken })).toBe(false);
+  });
+});

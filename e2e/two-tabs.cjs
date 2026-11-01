@@ -4,6 +4,7 @@ const { chromium } = require("playwright");
 (async () => {
   const b = await chromium.launch();
   const sofiaCtx = await b.newContext({ permissions: ["clipboard-read", "clipboard-write"] }), liamCtx = await b.newContext({ permissions: ["clipboard-read", "clipboard-write"] });
+  for (const ctx of [sofiaCtx, liamCtx]) await ctx.addInitScript(() => sessionStorage.setItem("schplitz2Opened", "1"));
   const s = await sofiaCtx.newPage(), l1 = await liamCtx.newPage();
   const link = async (p) => { await p.getByRole("button", { name: "Copy link" }).click(); const u = await p.getByRole("textbox", { name: "Link" }).inputValue(); await p.getByRole("button", { name: "Close" }).click(); return u; };
   await s.goto((process.env.BASE ?? "http://localhost:4173/v2/"));

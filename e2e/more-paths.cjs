@@ -11,6 +11,7 @@ const BASE = process.env.BASE ?? "http://localhost:4173/v2/";
   const all = [];
   const mk = async () => {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, permissions: ["clipboard-read", "clipboard-write"] });
+    await ctx.addInitScript(() => sessionStorage.setItem("schplitz2Opened", "1"));   // these walkthroughs test the app, not the landing page
     const page = await ctx.newPage(); const errors = [];
     page.on("pageerror", e => errors.push(e.message)); page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
     all.push(errors); return page;

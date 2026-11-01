@@ -22,6 +22,7 @@ npm run build    # builds Schplitz 1 (dist/index.html) and the preview (dist/v2/
 | `categories.js` | The category codes and their social units. Codes are permanent. |
 | `ui/environment.js` | Which kind of browser this is (in-app browser, WebKit) for the hints in docs §4.1. |
 | `ui/qr.js` | QR codes for the share sheet (qrcode-generator, MIT), rendered as one SVG path. |
+| `ui/Landing.jsx`, `ui/Site.jsx` | The landing page (lavender and pastel colours, rounded images, scroll motion; off with reduced motion), and the rule for who sees it first. |
 | `ui/` | The React screens. `App.jsx` holds the screen state and wires actions to `app.js`. `format.js` (copy, money, whose turn) and `numpad.js` (amount entry) are pure and unit-tested. `icons.js` holds Material Symbols path data (Apache-2.0, see `material-symbols-LICENSE.txt`). |
 
 ## Core rules

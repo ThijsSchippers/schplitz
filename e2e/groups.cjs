@@ -10,6 +10,7 @@ const os = require("os"), path = require("path"), fs = require("fs");
   const errors = [];
   const phone = async () => {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, acceptDownloads: true, permissions: ["clipboard-read", "clipboard-write"] });
+    await ctx.addInitScript(() => sessionStorage.setItem("schplitz2Opened", "1"));   // these walkthroughs test the app, not the landing page
     const page = await ctx.newPage();
     page.on("pageerror", e => errors.push(e.message));
     page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });

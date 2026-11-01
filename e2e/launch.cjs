@@ -31,9 +31,11 @@ const LAUNCH = process.env.LAUNCH_BASE ?? "http://localhost:4174";
   await d.getByRole("heading", { level: 1, name: /Split costs with a friend/ }).waitFor();
   console.log("default build, /: Schplitz 1 landing");
 
-  // Launch build: Schplitz 2 at "/", installable, no preview badge.
+  // Launch build: the landing page at "/" for newcomers, then Schplitz 2, installable, no preview badge.
   const p = await page();
   await p.goto(`${LAUNCH}/`);
+  await p.getByRole("heading", { level: 1, name: "Who's buying the next round?" }).waitFor();
+  await p.getByRole("button", { name: "Open Schplitz" }).click();
   await p.getByRole("button", { name: "Start a tally" }).waitFor();
   const badge = await p.getByText("2 · preview").count();
   const manifest = await p.locator('link[rel="manifest"]').getAttribute("href");
@@ -62,6 +64,7 @@ const LAUNCH = process.env.LAUNCH_BASE ?? "http://localhost:4174";
   await c.getByRole("heading", { level: 1, name: /Split costs with a friend/ }).waitFor();
   const v2 = await page();
   await v2.goto(`${LAUNCH}/v2/`);
+  await v2.getByRole("button", { name: "Open Schplitz" }).click();   // newcomers see the landing page first
   await v2.getByText("2 · preview").waitFor();
   console.log("/classic/: Schplitz 1 | /v2/: Schplitz 2 preview");
 

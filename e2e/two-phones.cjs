@@ -11,6 +11,7 @@ const shots = [];
   const browser = await chromium.launch();
   const mk = async () => {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, permissions: ["clipboard-read", "clipboard-write"] });
+    await ctx.addInitScript(() => sessionStorage.setItem("schplitz2Opened", "1"));   // these walkthroughs test the app, not the landing page
     const page = await ctx.newPage();
     const errors = [];
     page.on("pageerror", e => errors.push(e.message));

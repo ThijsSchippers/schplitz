@@ -18,6 +18,7 @@ import LogPayment from "./LogPayment.jsx";
 import Details from "./Details.jsx";
 import { ShareSheet, Review, SortOld, FullCopySheet } from "./Sheets.jsx";
 import { browserKind } from "./environment.js";
+import { USED_KEY } from "./visits.js";
 import { S } from "./theme.js";
 
 const TOAST_MS = 3200;
@@ -45,7 +46,8 @@ const needsReview = (report) =>
 
 const BROWSER = browserKind();
 
-export default function App({ rateFor = defaultRate, cacheName }) {
+/** firstView: "start" opens the start screen instead of home (from the landing page). */
+export default function App({ rateFor = defaultRate, cacheName, firstView = "home" }) {
   const [cache, setCache] = useState(null);
   const [tallies, setTallies] = useState([]);
   const [v1, setV1] = useState(null);
@@ -68,7 +70,10 @@ export default function App({ rateFor = defaultRate, cacheName }) {
   }, []);
 
   const refresh = useCallback(async (c) => {
-    setTallies(await c.listTallies());
+    const list = await c.listTallies();
+    setTallies(list);
+    // Returning visitors skip the landing page (Site.jsx).
+    if (list.length) try { localStorage.setItem(USED_KEY, "1"); } catch { /* storage blocked: harmless */ }
     setV1(await v1Status(c).catch(() => null));
   }, []);
 
@@ -112,7 +117,7 @@ export default function App({ rateFor = defaultRate, cacheName }) {
       requestPersistence();
       await refresh(c);
       const url = takeLinkFromAddressBar();
-      if (url) await handleLink(c, url); else setView({ name: "home" });
+      if (url) await handleLink(c, url); else setView({ name: firstView === "start" ? "start" : "home" });
       if (!alive) return;
 
       const onHash = () => { const u = takeLinkFromAddressBar(); if (u) handleLink(c, u); };

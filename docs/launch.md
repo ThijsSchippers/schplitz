@@ -27,7 +27,7 @@ On Vercel: Project → Settings → Environment Variables → add `VITE_V2_AT_RO
   - scanning a QR code with the camera
   - *Install Schplitz* on Android
   - the backup reminder on Safari
-- [ ] A v2 landing page at `/` (the current one describes Schplitz 1). Until then, people land straight in the app's home screen, which has a one-line intro.
+- [x] A v2 landing page (`src/v2/ui/Landing.jsx`). Newcomers see it at `/` and `/v2/`; people arriving with a link, or who already use Schplitz on that phone, go straight to the app (`Site.jsx`).
 - [ ] Update `index.html` meta and noscript text, and `public/llms.txt`, for Schplitz 2.
 - [ ] Confirm the group "about even" rule (docs/v2.0.md §7).
 - [ ] Run everything:
