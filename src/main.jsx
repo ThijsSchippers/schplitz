@@ -11,7 +11,7 @@ if (import.meta.env.VITE_V2_AT_ROOT === 'true') {
   for (const [rel, href] of [['manifest', '/manifest.webmanifest'], ['apple-touch-icon', '/v2/apple-touch-icon.png']]) {
     document.head.append(Object.assign(document.createElement('link'), { rel, href }));
   }
-  import('./v2/ui/App.jsx').then(({ default: App }) => root.render(<React.StrictMode><App /></React.StrictMode>));
+  import('./v2/ui/Site.jsx').then(({ default: Site }) => root.render(<React.StrictMode><Site /></React.StrictMode>));
 } else {
   import('./App.jsx').then(({ default: App }) => root.render(<React.StrictMode><App /></React.StrictMode>));
 }
