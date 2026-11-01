@@ -2,7 +2,7 @@
 // model, links, the phone's cache and v1 conversion. Every function that changes a
 // tally also saves it to the cache.
 
-import { createTally, joinTally, mergePayload, addPayment, addMember, renameTally, allEntries, dayNumber, settled } from "./tally.js";
+import { createTally, joinTally, mergePayload, addPayment, renameTally, allEntries, dayNumber, settled } from "./tally.js";
 import { deriveKey, encodeLink, decodeLink, readHeader } from "./link.js";
 import {
   V1_STORAGE_KEY, convertFromDevice, defaultRate, fingerprint, looksLikeMismatchedAnswer, readV1Storage, reimportFromDevice,
@@ -141,12 +141,6 @@ export async function prepareShare(tally, key, { origin, today = dayNumber() } =
 /** Call once the person actually shared (or copied) the link. */
 export function markShared(cache, tally, { full }) {
   return save(cache, tally, { sharedSeq: tally.writers[tally.me.writer].summary.s, ...(full ? { handshakeSent: true } : {}) });
-}
-
-/** Adds someone; they appear on the other phones with the next link. */
-export function addPerson(cache, tally, name) {
-  addMember(tally, name);
-  return save(cache, tally);
 }
 
 // ─── full copies and backups (docs §3.7, §4.1) ───────────────────────────────

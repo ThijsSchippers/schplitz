@@ -58,7 +58,11 @@
 
 import { MAX_NAME_LEN, MAX_QUESTION_LEN } from "../utils.js";
 
-export const MAX_MEMBERS = 10;
+export const MAX_MEMBERS = 10;                // for starting a tally and adding people
+// What a link and a merged tally may hold. Higher than MAX_MEMBERS because two phones can
+// each add people at the same time; their links must still combine, or neither phone could
+// read the other's links again. Two phones adding at once stay within 2 × MAX_MEMBERS.
+export const MAX_MEMBERS_COMBINED = 2 * MAX_MEMBERS;
 export const MAX_WRITERS = 200;               // restored phones each add a writer
 export const MAX_ENTRIES = 200_000;
 export const MAX_MINOR_UNITS = 100_000_000_000; // 1 billion in a 2-decimal currency
@@ -117,7 +121,7 @@ export const isCategoryCode = (k) => isInt(k, 0, 999);
 
 /** Participants: 1+ distinct IDs, all members. */
 export function isParticipants(p, memberIds) {
-  return Array.isArray(p) && p.length >= 1 && p.length <= MAX_MEMBERS &&
+  return Array.isArray(p) && p.length >= 1 && p.length <= MAX_MEMBERS_COMBINED &&
     new Set(p).size === p.length && p.every(id => memberIds.has(id));
 }
 
@@ -215,7 +219,7 @@ function checkSummary(w, x, memberIds) {
 export function checkPayload(p) {
   if (!isObject(p)) bad("payload: not an object");
   if (!isCurrency(p.cur) || !isInt(p.ae, 0, MAX_MINOR_UNITS)) bad("payload: currency or threshold");
-  if (!Array.isArray(p.m) || p.m.length < 2 || p.m.length > MAX_MEMBERS) bad("payload: members");
+  if (!Array.isArray(p.m) || p.m.length < 2 || p.m.length > MAX_MEMBERS_COMBINED) bad("payload: members");
   for (const m of p.m) {
     if (!Array.isArray(m) || m.length !== 2 || !isId(m[0])) bad("payload: member");
     try { checkName(m[1]); } catch { bad("payload: member name"); }

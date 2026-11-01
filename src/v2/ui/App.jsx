@@ -6,9 +6,9 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { openCache, requestPersistence } from "../cache.js";
 import {
   save, startTally, openLink, unlockLink, completeJoin, recordPayment, markShared, v1Status, convertDeviceV1, valueInTallyCurrency,
-  addPerson, readLinkFile, backupDue, markBackedUp, readOldLink, tallyForOldLink, openOldLink,
+  readLinkFile, backupDue, markBackedUp, readOldLink, tallyForOldLink, openOldLink,
 } from "../app.js";
-import { editPayment, voidPayment, notMe, askAbout, acceptDispute, keepAsIs, addPaidBack, setFreshStart, recategorize, renameTally, paymentState } from "../tally.js";
+import { editPayment, voidPayment, notMe, askAbout, acceptDispute, keepAsIs, addPaidBack, setFreshStart, recategorize, renameTally, addMember, paymentState } from "../tally.js";
 import { defaultRate } from "../migrate.js";
 import { errorText, hero, nameOf } from "./format.js";
 import { Toast } from "./components.jsx";
@@ -276,10 +276,9 @@ export default function App({ rateFor = defaultRate, cacheName, firstView = "hom
     },
     paidBack: (from, to, value) => change(t => addPaidBack(t, { from, to, value }), { ok: "Recorded", share: {} }),
     sort: () => setSheet({ kind: "sort" }),
-    addPerson: async (name) => {
-      await change(t => addPerson(cache, t, name), { ok: `Added ${name.trim()}`, share: { message: `I added ${name.trim()} to our tally.` } });
-      setPresent(currentRef.current.tally.members.map(m => m.id));
-    },
+    // They appear on the other phones with the next link. Whoever's marked as here stays marked.
+    addPerson: (name) => change(t => { const m = addMember(t, name); setPresent(p => [...p, m.id]); },
+      { ok: `Added ${name.trim()}`, share: { message: `I added ${name.trim()} to our tally.` } }),
     rename: (name) => change(t => renameTally(t, name), { ok: "Saved", share: {} }),
     fullCopy: () => setSheet({ kind: "fullCopy", mode: "send" }),
     forget: async () => { await cache.forgetTally(current.tally.id); await goHome(); flash("Removed from this phone"); },

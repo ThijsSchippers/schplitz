@@ -1,5 +1,5 @@
 // What a visitor sees first: the landing page for newcomers, the app for everyone else.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import App from "./App.jsx";
 import Landing from "./Landing.jsx";
 import { V1_STORAGE_KEY } from "../migrate.js";
@@ -19,6 +19,13 @@ export function skipLanding({ hash = location.hash, local = globalThis.localStor
 
 export default function Site(props) {
   const [inApp, setInApp] = useState(() => (skipLanding() ? "home" : null));
+  // A link opened in this tab while the landing page shows (pasted into the address bar).
+  useEffect(() => {
+    if (inApp) return undefined;
+    const onHash = () => { if (skipLanding()) setInApp("home"); };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, [inApp]);
   if (inApp) return <App {...props} firstView={inApp} />;
   return (
     <Landing onOpen={(target) => {

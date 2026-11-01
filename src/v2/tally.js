@@ -16,7 +16,7 @@
 import { CATEGORIES, OTHER, isCategory } from "./categories.js";
 import { localDayNumber, randomHex, toHex, utf8 } from "./encoding.js";
 import {
-  SchplitzError, MAX_MEMBERS, QUERY_REASONS, TALLY_ID, checkName, checkQuestion, checkPayload,
+  SchplitzError, MAX_MEMBERS, MAX_MEMBERS_COMBINED, QUERY_REASONS, TALLY_ID, checkName, checkQuestion, checkPayload,
   isCurrency, isMoney, isDay, isParticipants, FLAG_LEGACY, FLAG_PROVISIONAL,
 } from "./schema.js";
 
@@ -407,10 +407,11 @@ export const acceptDispute = (tally, ref, fix = {}, at) => queued(tally, () => d
 export const keepAsIs = (tally, ref, at) => queued(tally, () => doKeepAsIs(tally, ref, at));
 /** "Start fresh" (migration doc, step 2): converted v1 entries stop counting, or count again. */
 export const setFreshStart = (tally, on, at) => queued(tally, () => append(tally, { t: "fresh", on: on ? 1 : 0 }, at));
-/** Names the tally for everyone; an empty name clears it. */
+/** Names the tally for everyone; an empty name clears it. Returns null if nothing changed. */
 export const renameTally = (tally, name, at) => queued(tally, () => {
   const nm = String(name ?? "").trim();
   if (nm) checkName(nm);
+  if (nm === (tallyName(tally) ?? "")) return null;
   return append(tally, { t: "rename", nm }, at);
 });
 
@@ -536,7 +537,7 @@ const v1Ids = (entries) => new Set(entries.map(e => e.l).filter(Boolean));
 export function mergePayload(tally, payload) {
   checkPayload(payload);
   const newMembers = payload.m.filter(([id]) => !tally.members.some(m => m.id === id));
-  if (tally.members.length + newMembers.length > MAX_MEMBERS) throw new SchplitzError("invalid-payload", "Too many members");
+  if (tally.members.length + newMembers.length > MAX_MEMBERS_COMBINED) throw new SchplitzError("invalid-payload", "Too many members");
   for (const [id, name] of newMembers) tally.members.push({ id, name });
 
   const report = { newEntries: [], involvingMe: [], conflicts: [], replaced: [], review: [], newPhones: [] };

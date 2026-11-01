@@ -213,7 +213,7 @@ export default function Details({ tally, onBack, actions }) {
           <Field label={naming.kind === "add" ? "Their name" : "Name"} value={naming.text} maxLength={50} autoFocus
             placeholder={naming.kind === "add" ? "" : "Padel crew"} onChange={e => setNaming(x => ({ ...x, text: e.target.value }))}
             hint={naming.kind === "add" ? "They join by opening any link from this tally and picking their name." : "Everyone in the tally sees it."} />
-          <Button disabled={naming.kind === "add" && !naming.text.trim()}
+          <Button disabled={naming.kind === "add" ? !naming.text.trim() : naming.text.trim() === (tallyName(tally) ?? "")}
             onClick={() => { (naming.kind === "add" ? actions.addPerson : actions.rename)(naming.text); setNaming(null); }}>
             {naming.kind === "add" ? "Add" : naming.text.trim() ? "Save" : "Remove the name"}
           </Button>

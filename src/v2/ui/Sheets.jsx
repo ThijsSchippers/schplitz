@@ -1,5 +1,5 @@
 // Sheets over the tally screen: sharing, reviewing what arrived, sorting old entries.
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CATEGORIES, TILE_ORDER } from "../categories.js";
 import { usualAmount, QUERY_REASONS } from "../tally.js";
 import { prepareShare, prepareFullCopy, fullCopyFile } from "../app.js";
@@ -19,7 +19,7 @@ export function ShareSheet({ tally, cryptoKey, origin, request, onShared, onClos
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
   const [showQr, setShowQr] = useState(false);
-  const qr = link && showQr ? qrPath(link.url) : null;
+  const qr = useMemo(() => (link ? qrPath(link.url) : null), [link]);   // null when the link is too long to scan
   const text = request.message ?? (request.invite ? INVITE_MESSAGE : shareMessage(tally, request.lastCategory));
   const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
 
@@ -55,10 +55,10 @@ export function ShareSheet({ tally, cryptoKey, origin, request, onShared, onClos
         <textarea readOnly aria-label="Link" value={link.url} onFocus={e => e.target.select()}
           style={{ ...S.input, fontSize: 12, minHeight: 70, resize: "none", color: C.muted }} />
       )}
-      {link && qrPath(link.url) && (
+      {qr && (
         <Button variant="ghost" icon="qr_code_2" aria-expanded={showQr} onClick={() => setShowQr(v => !v)}>{showQr ? "Hide QR code" : "Show QR code"}</Button>
       )}
-      {qr && (
+      {qr && showQr && (
         <figure style={{ margin: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
           <svg role="img" aria-label="QR code of the link" viewBox={`0 0 ${qr.size} ${qr.size}`} shapeRendering="crispEdges"
             style={{ width: "min(100%, 300px)", background: "#fff", borderRadius: 8 }}>

@@ -170,3 +170,26 @@ describe("about even", () => {
     expect(turn).toMatchObject({ member: idOf(ana, "Cas"), net: 0, aboutEven: false });
   });
 });
+
+describe("adding people on two phones at once", () => {
+  it("links still combine when the group goes past 10 that way", async () => {
+    const names = ["Ana", "Ben", "Cas", "Dee", "Eli", "Fay", "Gus", "Hal"];
+    const { phones, key } = await crew(names);
+    addMember(phones.Ana, "Ivy"); addMember(phones.Ana, "Jo");      // Ana: 10
+    addMember(phones.Ben, "Kim"); addMember(phones.Ben, "Lou");     // Ben, at the same time: 10
+    expect(() => addMember(phones.Ana, "Max")).toThrow(/up to 10/);
+    await addPayment(phones.Ben, { category: DRINKS, amount: 1200, at: TODAY });   // split among Ben's 10
+    await receive(await send(phones.Ben, key), key, phones.Ana);
+    await receive(await send(phones.Ana, key), key, phones.Ben);
+    expect(phones.Ana.members).toHaveLength(12);
+    expect(phones.Ben.members.map(m => m.id).sort()).toEqual(phones.Ana.members.map(m => m.id).sort());
+    expect(balance(phones.Ana)).toEqual(balance(phones.Ben));
+  });
+
+  it("a rename that changes nothing writes nothing", async () => {
+    const { phones } = await crew();
+    await renameTally(phones.Ana, "Padel crew", TODAY);
+    expect(await renameTally(phones.Ana, " Padel crew ", TODAY)).toBeNull();
+    expect(allEntries(phones.Ana).filter(e => e.t === "rename")).toHaveLength(1);
+  });
+});
