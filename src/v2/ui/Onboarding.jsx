@@ -55,7 +55,7 @@ export function Home({ tallies, v1, onOpen, onStart, onConvert, onOpenFile, onIn
       })}
 
       {tallies.length === 0 && !v1 && (
-        <p style={{ ...S.muted, fontSize: 15, margin: "24px 4px 8px" }}>Keep track of who's ahead with a friend, so you know who covers next time. No accounts, no server.</p>
+        <p style={{ ...S.muted, fontSize: 15, margin: "24px 4px 8px" }}>Keep track of who's ahead with a friend, so you know who covers next time. No sign-up, and we store nothing.</p>
       )}
       <Button icon="add" onClick={onStart}>Start a tally</Button>
       <Button variant="ghost" icon="upload_file" onClick={() => fileInput.current?.click()}>Open a full copy</Button>

@@ -159,10 +159,12 @@ const CSS = `
 .ld-spec { max-width: 760px; margin: 44px auto 0; border-radius: 32px; background: var(--cream); color: var(--ink); padding: clamp(20px, 4vw, 36px); text-align: left; }
 .ld-spec dl { display: grid; grid-template-columns: max-content 1fr; gap: 0; margin: 0; }
 .ld-spec dt, .ld-spec dd { margin: 0; padding: 13px 0; border-top: 1px solid rgba(60,49,91,.12); font-size: 15px; }
-.ld-spec dt { padding-right: 24px; color: var(--muted); font-weight: 600; }
-.ld-spec dd { font-weight: 600; }
+.ld-spec dt { padding-right: 28px; font-weight: 700; }
+.ld-spec dd { color: #4A4170; }
 .ld-spec dt:first-of-type, .ld-spec dd:first-of-type { border-top: 0; }
 .ld-spec p { margin: 18px 0 0; font-size: 14px; line-height: 1.5; color: var(--muted); }
+.ld-spec .ld-tech { margin-top: 8px; font-size: 13px; }
+.ld-spec .ld-tech a { color: inherit; }
 
 .ld-final { margin: 0 clamp(12px, 3vw, 32px); border-radius: 32px; padding: clamp(64px, 10vw, 120px) 20px; text-align: center; color: var(--cream);
   background: linear-gradient(135deg, var(--navy) 0%, #2B2F7A 55%, var(--deep) 100%); }
@@ -225,18 +227,17 @@ const RIBBON = [
 ];
 
 const PROBLEMS = [
-  ["/v2/img/hiking.jpg", "Stored on their servers", "Every expense you add lives on a server you don't control."],
-  ["/v2/img/bar-friends.jpg", "Used for analytics", "What you spend, and where, becomes data in someone else's system."],
-  ["/v2/img/beach-friends.jpg", "Shared with partners", "Ad networks and payment processors can end up with it too."],
+  ["/v2/img/hiking.jpg", "Kept by the company", "Everything you add is saved on their computers, not yours."],
+  ["/v2/img/bar-friends.jpg", "Studied for profit", "What you spend, and where, says a lot about you. That's worth money to them."],
+  ["/v2/img/beach-friends.jpg", "Passed on", "Advertisers and other companies can end up seeing it too."],
 ];
 
 const SPEC = [
-  ["Server", "None. There's nothing to send your data to."],
-  ["Account", "None."],
-  ["Tracking", "None. No analytics, no cookies, no ads."],
-  ["Encryption", "AES-256-GCM, in your browser"],
-  ["Key", "Made from your answer with PBKDF2-SHA256, 600,000 rounds"],
-  ["Network", "Only to look up exchange rates (frankfurter.app)"],
+  ["Do you keep what I spend?", "No. We have nowhere to put it."],
+  ["Do I need an account?", "No. Open the page and start."],
+  ["Do you track me?", "No. No ads, no cookies, nothing that follows you around."],
+  ["Who can open my links?", "Only people who know your group's answer."],
+  ["Does Schplitz go online at all?", "Only to look up exchange rates, like euros to pounds."],
 ];
 
 /**
@@ -289,20 +290,20 @@ export default function Landing({ onOpen }) {
           <div className="ld-hero-in">
             <p className="ld-eyebrow"><Svg name="lock" /> Splitting costs with friends, privately</p>
             <h1 className="ld-h1" id="ld-title">Your payment data is yours. <em>And yours alone.</em></h1>
-            <p className="ld-lead">Schplitz keeps track of who's ahead between friends. There's no account and no server, so nobody else ever sees what you spend.</p>
+            <p className="ld-lead">Schplitz keeps track of who's ahead between friends. No sign-up, and we store nothing, so nobody else ever sees what you spend.</p>
             <button type="button" className="ld-btn cream big" onClick={() => onOpen("start")}>Start a tally</button>
-            <p className="ld-note">Free. Runs in your browser, nothing to install.</p>
+            <p className="ld-note">Free. Nothing to download.</p>
           </div>
           <div className="ld-float" aria-hidden="true">
-            <div className="ld-chipcard"><Svg name="cloud_off" /> No server</div>
+            <div className="ld-chipcard"><Svg name="person_cancel" /> No sign-up</div>
             <div className="ld-mock"><small><Svg name="lock" /> Only on your phones</small><b>Next one's on Ben</b><span>Ben is about 2 rounds of drinks behind.</span></div>
-            <div className="ld-chipcard keep"><Svg name="visibility_off" /> No tracking</div>
+            <div className="ld-chipcard keep"><Svg name="visibility_off" /> No ads</div>
           </div>
         </section>
 
         <section className="ld-statement" data-tone="ice" aria-labelledby="ld-problem">
           <h2 className="ld-h2" id="ld-problem" data-reveal>Most splitting apps keep<span className="ld-inline sky" data-reveal><Svg name="database_off" /></span> a copy of what you spend</h2>
-          <p className="ld-sub" data-reveal>Every coffee, dinner and weekend away, on someone else's server.</p>
+          <p className="ld-sub" data-reveal>Every coffee, dinner and weekend away, saved by the company behind the app.</p>
           <div className="ld-problems">
             {PROBLEMS.map(([src, title, body]) => (
               <article className="ld-problem" key={title} data-reveal>
@@ -316,10 +317,10 @@ export default function Landing({ onOpen }) {
 
         <section className="ld-statement" data-tone="navy" id="private" aria-labelledby="ld-private">
           <h2 className="ld-h2" id="ld-private" data-reveal>Your chat is the record. <br />We never see it.</h2>
-          <p className="ld-sub" data-reveal>The balance travels inside the links you send each other, encrypted with an answer only your group knows.</p>
+          <p className="ld-sub" data-reveal>The tally travels in the links you send each other, locked with an answer only your group knows.</p>
           <div className="ld-stack" role="list" aria-label="How your data stays yours">
-            <div role="listitem"><Svg name="person_cancel" />No account<small>Open the page and start. There's nothing to sign up for.</small></div>
-            <div role="listitem"><Svg name="lock" />Encrypted links<small>Locked in your browser before anything leaves your phone.</small></div>
+            <div role="listitem"><Svg name="person_cancel" />No account<small>Open the page and start. No email, no password.</small></div>
+            <div role="listitem"><Svg name="lock" />Locked links<small>Locked on your phone before you send them. Only your group can open them.</small></div>
             <div role="listitem"><Svg name="key" />Your answer stays with you<small>It's the key to every link. We never see it.</small></div>
             <div role="listitem"><Svg name="backup" />Lose your phone, keep your tally<small>Open the latest link from your chat and you're back.</small></div>
           </div>
@@ -383,11 +384,12 @@ export default function Landing({ onOpen }) {
         </div>
 
         <section className="ld-statement" data-tone="sky" aria-labelledby="ld-spec">
-          <h2 className="ld-h2" id="ld-spec" data-reveal>Check it yourself</h2>
-          <p className="ld-sub" data-reveal>Schplitz uses the encryption built into your browser. The code is open, so anyone can see what it does.</p>
+          <h2 className="ld-h2" id="ld-spec" data-reveal>No small print</h2>
+          <p className="ld-sub" data-reveal>Straight answers to what people ask us.</p>
           <div className="ld-spec" data-reveal>
             <dl>{SPEC.map(([k, v]) => <Fragment key={k}><dt>{k}</dt><dd>{v}</dd></Fragment>)}</dl>
-            <p>The question you pick is readable in the links, so keep it vague. Everything else in a link is encrypted.</p>
+            <p>One thing to know: anyone with a link can read the question you picked, so keep it vague. Everything else is locked.</p>
+            <p className="ld-tech">For the technical crowd: AES-256-GCM, keys from PBKDF2-SHA256 with 600,000 rounds, and the <a href="https://github.com/thijsschippers/schplitz">code is open</a>.</p>
           </div>
         </section>
 
