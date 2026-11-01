@@ -13,7 +13,7 @@ const SPEC_ROWS = [
   ["SALT",        "16 bytes · random"],
   ["IV",          "12 bytes · random"],
   ["STORAGE",     "localStorage (your device)"],
-  ["NETWORK",     "none"],
+  ["NETWORK",     "exchange rates only"],
 ];
 
 const FULL_SPEC_ROWS = [
@@ -25,7 +25,7 @@ const FULL_SPEC_ROWS = [
   ["PLAINTEXT FORMAT","JSON · UTF-8"],
   ["COMPRESSION",     "deflate-raw (URL payload)"],
   ["STORAGE",         "localStorage · client only"],
-  ["NETWORK CALLS",   "None (currency API optional)"],
+  ["NETWORK CALLS",   "Exchange rates only (frankfurter.app)"],
   ["TELEMETRY",       "None"],
   ["SERVER",          "None"],
   ["ACCOUNT REQUIRED","No"],
@@ -38,16 +38,16 @@ const MOMENTS = [
 ];
 
 const PROBLEMS = [
-  { src: "/images/city-night.jpg",   title: "Synced to the cloud",       body: "Every expense uploaded to a server you don't own." },
-  { src: "/images/bar-friends.jpg",  title: "Mined for insights",        body: "Your spending habits become data points in someone else's system." },
-  { src: "/images/hiking.jpg",       title: "Shared with third parties",  body: "Ad networks, processors — your data gets passed around." },
+  { src: "/images/city-night.jpg",   title: "Stored on their servers",   body: "Every expense you add lives on a server you don't control." },
+  { src: "/images/bar-friends.jpg",  title: "Used for analytics",        body: "What you spend, and where, becomes data in someone else's system." },
+  { src: "/images/hiking.jpg",       title: "Shared with partners",      body: "Ad networks and payment processors can end up with it too." },
 ];
 
 const STEPS = [
-  { n: "01", title: "Set a shared secret",    body: "Pick a security question only you two would know. The answer is the encryption key — we never see it." },
-  { n: "02", title: "Log your expenses",      body: "Add what you spent. Everything stays on your device. Nothing is transmitted without your action." },
-  { n: "03", title: "Share an encrypted link",body: "Generate a link. Your expenses are encrypted before they touch the URL. The other person decrypts with the same answer." },
-  { n: "04", title: "See who owes what",      body: "Schplitz calculates the balance across currencies at the historical exchange rate. No account required — just the number." },
+  { n: "01", title: "Agree on a question",    body: "Pick a question only the two of you can answer. The answer is the encryption key, and we never see it." },
+  { n: "02", title: "Add what you spent",     body: "Everything stays on your device until you decide to share it." },
+  { n: "03", title: "Send a link",            body: "Your expenses are encrypted before they go into the link. The other person opens it with the same answer." },
+  { n: "04", title: "See who owes what",      body: "Schplitz adds it up across currencies, at the exchange rate of the day you paid. No account needed." },
 ];
 
 // ─── RESPONSIVE CSS ───────────────────────────────────────────────────────────
@@ -103,7 +103,7 @@ export default function LandingPage({ onLaunch }) {
   const [cursorVisible, setCursorVisible] = useState(true);
 
   useEffect(() => {
-    // Respect prefers-reduced-motion — keep cursor static if user opts out of animation
+    // Respect prefers-reduced-motion: keep the cursor static if the user opts out of animation
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const id = setInterval(() => setCursorVisible(v => !v), 600);
     return () => clearInterval(id);
@@ -122,10 +122,10 @@ export default function LandingPage({ onLaunch }) {
       {/* ── HERO ── */}
       <section className="lp-hero" style={L.hero}>
         <div className="lp-hero-left" style={L.heroLeft}>
-          <span style={L.eyebrow}>SCHPLITZ // CLIENT-SIDE ONLY</span>
+          <span style={L.eyebrow}>RUNS IN YOUR BROWSER</span>
           <h1 style={L.heroH1}>
-            Don't let your purchase history{" "}
-            <span style={L.accent}>haunt</span> your future.
+            Split costs with a friend.{" "}
+            <span style={L.accent}>Keep it between you.</span>
           </h1>
 
           <div style={L.termBox}>
@@ -174,8 +174,8 @@ export default function LandingPage({ onLaunch }) {
       {/* ── PROBLEM ── */}
       <section className="lp-section" style={L.section}>
         <div style={L.sectionHead}>
-          <span style={L.eyebrow}>THE UNCOMFORTABLE TRUTH</span>
-          <h2 style={L.sectionH2}>Other apps know <span style={L.accent}>too much.</span></h2>
+          <span style={L.eyebrow}>WHY SCHPLITZ</span>
+          <h2 style={L.sectionH2}>Most splitting apps <span style={L.accent}>keep a copy.</span></h2>
         </div>
         <div className="lp-prob-grid" style={L.problemGrid}>
           {PROBLEMS.map(c => (
@@ -197,9 +197,9 @@ export default function LandingPage({ onLaunch }) {
         <div style={L.photoBreakContent}>
           <div style={L.quoteLine} />
           <p style={L.quoteText}>
-            "The best place to store sensitive data is somewhere no one else can reach it."
+            Your expenses stay on your phone and in the links you send. We never see them.
           </p>
-          <span style={L.quoteAttr}>SCHPLITZ · CLIENT-SIDE ONLY</span>
+          <span style={L.quoteAttr}>NO SERVER, NO DATABASE</span>
         </div>
       </div>
 
@@ -207,7 +207,7 @@ export default function LandingPage({ onLaunch }) {
       <section className="lp-section" style={{ ...L.section, maxWidth: 840 }}>
         <div style={L.sectionHead}>
           <span style={L.eyebrow}>HOW IT WORKS</span>
-          <h2 style={L.sectionH2}>Simple.<br /><span style={L.accent}>By design.</span></h2>
+          <h2 style={L.sectionH2}>Four steps.<br /><span style={L.accent}>No sign-up.</span></h2>
         </div>
         <div>
           {STEPS.map((s, i) => (
@@ -230,7 +230,7 @@ export default function LandingPage({ onLaunch }) {
         </div>
         <div className="lp-spec-content" style={L.specContent}>
           <span style={L.eyebrow}>TECHNICAL SPECIFICATION</span>
-          <h2 style={L.specH2}>Built on Web Crypto.<br /><span style={L.accent}>Nothing else.</span></h2>
+          <h2 style={L.specH2}>Encrypted with the<br /><span style={L.accent}>browser's own crypto.</span></h2>
           <table style={L.specTable}>
             <tbody>
               {FULL_SPEC_ROWS.map(([k, v]) => (
@@ -242,7 +242,7 @@ export default function LandingPage({ onLaunch }) {
             </tbody>
           </table>
           <p style={L.specNote}>
-            All cryptographic operations use the browser's native SubtleCrypto API.
+            All encryption uses the browser's built-in Web Crypto API. No third-party crypto code.
           </p>
         </div>
       </div>
@@ -252,9 +252,9 @@ export default function LandingPage({ onLaunch }) {
         <img src="/images/sunset-couple.jpg" alt="" style={L.ctaBgImg} loading="lazy" />
         <div style={L.ctaScrim} />
         <div style={L.ctaInner}>
-          <span style={L.eyebrow}>READY WHEN YOU ARE</span>
+          <span style={L.eyebrow}>TRY IT</span>
           <h2 style={L.ctaH2}>
-            Your money.<br /><span style={L.accent}>Your business.</span>
+            Start a tally<br /><span style={L.accent}>in a minute.</span>
           </h2>
           <p style={L.ctaNote}>NO DOWNLOADS · NO INSTALLS · OPEN AND GO</p>
           <button onClick={onLaunch} style={L.heroCta}>OPEN SCHPLITZ →</button>
@@ -319,7 +319,7 @@ const L = {
   sectionHead:  { marginBottom: 56 },
   sectionH2:    { fontFamily: SERIF, fontSize: "clamp(34px,5vw,54px)", fontWeight: 700, lineHeight: 1.08, letterSpacing: "-2px", color: "#fff", margin: "12px 0 0" },
 
-  // Problem cards — text ON the photo
+  // Problem cards: text on the photo
   problemGrid:  { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 2 },
   probCard:     { position: "relative", overflow: "hidden", height: 400 },
   probImg:      { position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" },

@@ -15,9 +15,13 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src/v2",
+    "e2e": "node e2e/two-phones.cjs && node e2e/more-paths.cjs && node e2e/two-tabs.cjs && node e2e/groups.cjs",
+    "e2e:launch": "node e2e/launch.cjs"
   },
   "dependencies": {
+    "qrcode-generator": "^1.4.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
@@ -27,6 +31,11 @@
     "@testing-library/user-event": "^14.6.1",
     "@vitejs/plugin-react": "^4.2.1",
     "@vitest/coverage-v8": "^4.1.2",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "fake-indexeddb": "^6.0.0",
+    "globals": "^15.15.0",
     "jsdom": "^29.0.1",
     "vite": "^5.0.8",
     "vitest": "^4.1.2"

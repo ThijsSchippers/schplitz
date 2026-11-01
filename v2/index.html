@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.frankfurter.app; img-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self';" />
+    <link rel="manifest" href="/v2/manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/v2/icon-192.png" />
+    <link rel="apple-touch-icon" href="/v2/apple-touch-icon.png" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="theme-color" content="#F5F4FE" />
+    <title>Schplitz 2 (preview)</title>
+    <style>
+      /* Before the app loads; the app adds its own page styles (theme.js, GLOBAL_CSS). */
+      html, body { margin: 0; background: #F5F4FE; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/v2/ui/main.jsx"></script>
+  </body>
+</html>
