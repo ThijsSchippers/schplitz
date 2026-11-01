@@ -138,7 +138,7 @@ describe("landing page", () => {
     sessionStorage.clear();
     const user = userEvent.setup();
     render(<Site cacheName={`screens-${crypto.randomUUID()}`} rateFor={rateFor} />);
-    expect(screen.getByRole("heading", { level: 1, name: "Who's buying the next round?" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Your payment data is yours. And yours alone." })).toBeInTheDocument();
     await user.click(screen.getAllByRole("button", { name: "Start a tally" })[0]);
     expect(await screen.findByLabelText("Your name")).toBeInTheDocument();
   });

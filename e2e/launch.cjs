@@ -34,7 +34,7 @@ const LAUNCH = process.env.LAUNCH_BASE ?? "http://localhost:4174";
   // Launch build: the landing page at "/" for newcomers, then Schplitz 2, installable, no preview badge.
   const p = await page();
   await p.goto(`${LAUNCH}/`);
-  await p.getByRole("heading", { level: 1, name: "Who's buying the next round?" }).waitFor();
+  await p.getByRole("heading", { level: 1, name: "Your payment data is yours. And yours alone." }).waitFor();
   await p.getByRole("button", { name: "Open Schplitz" }).click();
   await p.getByRole("button", { name: "Start a tally" }).waitFor();
   const badge = await p.getByText("2 · preview").count();
