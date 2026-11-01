@@ -57,13 +57,10 @@ const CSS = `
 .ld-h1 { font-size: clamp(40px, 7vw, 84px); line-height: 1.02; letter-spacing: -.03em; font-weight: 700; margin: 14px 0 18px; }
 .ld-h1 em { font-style: normal; color: var(--mist); }
 .ld-lead { font-size: clamp(17px, 2vw, 21px); line-height: 1.45; max-width: 620px; margin: 0 auto 28px; opacity: .95; }
-.ld-note { font-size: 13px; opacity: .85; margin-top: 12px; }
 
 /* floating cards over the hero photo */
 .ld-float { position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%); display: flex; gap: 14px; align-items: flex-end; pointer-events: none; }
 .ld-mock { background: var(--navy); color: var(--cream); border-radius: 24px; padding: 18px 20px; text-align: left; box-shadow: 0 20px 50px rgba(0,0,0,.35); width: 300px; animation: ld-bob 6s ease-in-out infinite -1s; }
-.ld-mock small { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--mist); margin-bottom: 8px; }
-.ld-mock small svg { width: 14px; height: 14px; }
 .ld-mock b { display: block; font-size: 22px; letter-spacing: -.02em; margin-bottom: 4px; }
 .ld-mock span { font-size: 14px; color: var(--mist); }
 .ld-chipcard { background: var(--cream); color: var(--ink); border-radius: 20px; padding: 12px 14px; display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px;
@@ -87,12 +84,17 @@ const CSS = `
 
 /* "most apps keep a copy": rounded photo cards with the problem on them */
 .ld-problems { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; max-width: 1100px; margin: 48px auto 0; padding: 0 clamp(16px, 4vw, 40px); }
-.ld-problem { position: relative; border-radius: 32px; overflow: hidden; aspect-ratio: 4 / 5; color: var(--cream); text-align: left; }
+.ld-problem { display: flex; flex-direction: column; border-radius: 32px; overflow: hidden; background: var(--cream); color: var(--cream); text-align: left; box-shadow: 0 14px 36px rgba(27,42,85,.12); }
+.ld-problem-pic { position: relative; aspect-ratio: 4 / 4.2; overflow: hidden; }
+.ld-problem small { display: block; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--mist); margin-bottom: 6px; }
+.ld-instead { margin: 0; flex: 1; display: flex; gap: 10px; align-items: flex-start; padding: 18px 22px 22px; color: var(--ink); font-size: 15px; line-height: 1.45; }
+.ld-instead b { color: var(--deep); }
+.ld-instead svg { width: 22px; height: 22px; flex-shrink: 0; padding: 3px; border-radius: 50%; background: var(--deep); color: var(--cream); }
 .ld-problem img { width: 100%; height: 100%; object-fit: cover; filter: saturate(.8); transition: transform .8s var(--ease); }
 .ld-problem:hover img { transform: scale(1.04); }
-.ld-problem div { position: absolute; inset: auto 0 0 0; padding: 24px; background: linear-gradient(transparent, rgba(27,42,85,.92) 55%); }
-.ld-problem h3 { margin: 0 0 6px; font-size: 22px; letter-spacing: -.02em; }
-.ld-problem p { margin: 0; font-size: 15px; line-height: 1.45; color: var(--mist); }
+.ld-problem-pic > div { position: absolute; inset: auto 0 0 0; padding: 24px; background: linear-gradient(transparent, rgba(27,42,85,.92) 55%); }
+.ld-problem-pic h3 { margin: 0 0 6px; font-size: 22px; letter-spacing: -.02em; }
+.ld-problem-pic p { margin: 0; font-size: 15px; line-height: 1.45; color: var(--mist); }
 .ld-answer { margin: 56px auto 0; display: inline-flex; align-items: center; gap: 10px; padding: 14px 24px; border-radius: 100px; background: var(--navy); color: var(--cream); font-size: 18px; font-weight: 700; }
 .ld-answer svg { width: 22px; height: 22px; color: var(--mist); }
 
@@ -171,7 +173,7 @@ const CSS = `
 .ld-final .ld-sub { color: var(--mist); margin-bottom: 30px; }
 .ld-v1 { max-width: 640px; margin: 0 auto; border-radius: 24px; background: var(--cream); color: var(--ink); padding: 24px 26px; display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .ld-v1 p { margin: 0; font-size: 16px; line-height: 1.45; flex: 1 1 280px; }
-.ld-footer { margin: 24px clamp(12px, 3vw, 32px) 24px; border-radius: 32px; background: var(--cream); color: var(--ink); padding: 28px clamp(20px, 4vw, 40px);
+.ld-footer { margin: 24px clamp(12px, 3vw, 32px) 0; border-radius: 32px 32px 0 0; background: var(--cream); color: var(--ink); padding: 28px clamp(20px, 4vw, 40px);
   display: flex; gap: 16px; justify-content: space-between; align-items: center; flex-wrap: wrap; font-size: 14px; }
 .ld-footer nav { display: flex; gap: 18px; flex-wrap: wrap; }
 
@@ -195,7 +197,7 @@ const CSS = `
   .ld-float .ld-chipcard.keep { display: flex; position: absolute; top: -52px; right: 6px; }
   .ld-mock { width: min(300px, 100%); }
   .ld-problems { grid-template-columns: 1fr; max-width: 420px; }
-  .ld-problem { aspect-ratio: 4 / 3; }
+  .ld-problem-pic { aspect-ratio: 4 / 3; }
   .ld-stack { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; max-width: 420px; }
   .ld-stack div + div { margin-left: 0; }
   .ld-stack div { min-height: 196px; font-size: 17px; padding: 18px; }
@@ -227,15 +229,16 @@ const RIBBON = [
 ];
 
 const PROBLEMS = [
-  ["/v2/img/hiking.jpg", "Kept by the company", "Everything you add is saved on their computers, not yours."],
-  ["/v2/img/bar-friends.jpg", "Studied for profit", "What you spend, and where, says a lot about you. That's worth money to them."],
-  ["/v2/img/beach-friends.jpg", "Passed on", "Advertisers and other companies can end up seeing it too."],
+  // [photo, what other apps do, what that means, what Schplitz does instead]
+  ["/v2/img/hiking.jpg", "Kept by the company", "Everything you add is saved on their computers, not yours.", "Stays on your phones and in your chat."],
+  ["/v2/img/bar-friends.jpg", "Studied for profit", "What you spend, and where, says a lot about you. That's worth money to them.", "Nothing to study. No ads, no tracking."],
+  ["/v2/img/beach-friends.jpg", "Passed on", "Advertisers and other companies can end up seeing it too.", "Nothing to pass on. Only your group can open the links."],
 ];
 
 const SPEC = [
-  ["Do you keep what I spend?", "No. We have nowhere to put it."],
+  ["Does Schplitz keep what I spend?", "No. It has nowhere to put it."],
   ["Do I need an account?", "No. Open the page and start."],
-  ["Do you track me?", "No. No ads, no cookies, nothing that follows you around."],
+  ["Does Schplitz track me?", "No. No ads, no cookies, nothing that follows you around."],
   ["Who can open my links?", "Only people who know your group's answer."],
   ["Does Schplitz go online at all?", "Only to look up exchange rates, like euros to pounds."],
 ];
@@ -290,25 +293,27 @@ export default function Landing({ onOpen }) {
           <div className="ld-hero-in">
             <p className="ld-eyebrow"><Svg name="lock" /> Splitting costs with friends, privately</p>
             <h1 className="ld-h1" id="ld-title">Your payment data is yours. <em>And yours alone.</em></h1>
-            <p className="ld-lead">Schplitz keeps track of who's ahead between friends. No sign-up, and we store nothing, so nobody else ever sees what you spend.</p>
+            <p className="ld-lead">Schplitz keeps track of who's ahead between friends. No sign-up, and Schplitz stores nothing, so nobody else ever sees what you spend.</p>
             <button type="button" className="ld-btn cream big" onClick={() => onOpen("start")}>Start a tally</button>
-            <p className="ld-note">Free. Nothing to download.</p>
           </div>
           <div className="ld-float" aria-hidden="true">
             <div className="ld-chipcard"><Svg name="person_cancel" /> No sign-up</div>
-            <div className="ld-mock"><small><Svg name="lock" /> Only on your phones</small><b>Next one's on Ben</b><span>Ben is about 2 rounds of drinks behind.</span></div>
+            <div className="ld-mock"><b>Next one's on Ben</b><span>Ben is about 2 rounds of drinks behind.</span></div>
             <div className="ld-chipcard keep"><Svg name="visibility_off" /> No ads</div>
           </div>
         </section>
 
         <section className="ld-statement" data-tone="ice" aria-labelledby="ld-problem">
           <h2 className="ld-h2" id="ld-problem" data-reveal>Most splitting apps keep<span className="ld-inline sky" data-reveal><Svg name="database_off" /></span> a copy of what you spend</h2>
-          <p className="ld-sub" data-reveal>Every coffee, dinner and weekend away, saved by the company behind the app.</p>
+          <p className="ld-sub" data-reveal>Every coffee, dinner and weekend away, saved by the company behind the app. Schplitz works the other way round.</p>
           <div className="ld-problems">
-            {PROBLEMS.map(([src, title, body]) => (
+            {PROBLEMS.map(([src, title, body, instead]) => (
               <article className="ld-problem" key={title} data-reveal>
-                <img src={src} alt="" loading="lazy" />
-                <div><h3>{title}</h3><p>{body}</p></div>
+                <div className="ld-problem-pic">
+                  <img src={src} alt="" loading="lazy" />
+                  <div><small>Other apps</small><h3>{title}</h3><p>{body}</p></div>
+                </div>
+                <p className="ld-instead"><Svg name="check" /><span><b>Schplitz:</b> {instead}</span></p>
               </article>
             ))}
           </div>
@@ -316,12 +321,12 @@ export default function Landing({ onOpen }) {
         </section>
 
         <section className="ld-statement" data-tone="navy" id="private" aria-labelledby="ld-private">
-          <h2 className="ld-h2" id="ld-private" data-reveal>Your chat is the record. <br />We never see it.</h2>
+          <h2 className="ld-h2" id="ld-private" data-reveal>Your chat is the record. <br />Schplitz never sees it.</h2>
           <p className="ld-sub" data-reveal>The tally travels in the links you send each other, locked with an answer only your group knows.</p>
           <div className="ld-stack" role="list" aria-label="How your data stays yours">
             <div role="listitem"><Svg name="person_cancel" />No account<small>Open the page and start. No email, no password.</small></div>
             <div role="listitem"><Svg name="lock" />Locked links<small>Locked on your phone before you send them. Only your group can open them.</small></div>
-            <div role="listitem"><Svg name="key" />Your answer stays with you<small>It's the key to every link. We never see it.</small></div>
+            <div role="listitem"><Svg name="key" />Your answer stays with you<small>It's the key to every link, and it never leaves your phone.</small></div>
             <div role="listitem"><Svg name="backup" />Lose your phone, keep your tally<small>Open the latest link from your chat and you're back.</small></div>
           </div>
         </section>
@@ -385,11 +390,10 @@ export default function Landing({ onOpen }) {
 
         <section className="ld-statement" data-tone="sky" aria-labelledby="ld-spec">
           <h2 className="ld-h2" id="ld-spec" data-reveal>No small print</h2>
-          <p className="ld-sub" data-reveal>Straight answers to what people ask us.</p>
+          <p className="ld-sub" data-reveal>Straight answers to what people ask.</p>
           <div className="ld-spec" data-reveal>
             <dl>{SPEC.map(([k, v]) => <Fragment key={k}><dt>{k}</dt><dd>{v}</dd></Fragment>)}</dl>
-            <p>One thing to know: anyone with a link can read the question you picked, so keep it vague. Everything else is locked.</p>
-            <p className="ld-tech">For the technical crowd: AES-256-GCM, keys from PBKDF2-SHA256 with 600,000 rounds, and the <a href="https://github.com/thijsschippers/schplitz">code is open</a>.</p>
+            <p>For the technical crowd: For the technical crowd: AES-256-GCM, keys from PBKDF2-SHA256 with 600,000 rounds, and the <a href="https://github.com/thijsschippers/schplitz">code is open</a>.</p>
           </div>
         </section>
 

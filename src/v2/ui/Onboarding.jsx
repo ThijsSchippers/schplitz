@@ -55,7 +55,7 @@ export function Home({ tallies, v1, onOpen, onStart, onConvert, onOpenFile, onIn
       })}
 
       {tallies.length === 0 && !v1 && (
-        <p style={{ ...S.muted, fontSize: 15, margin: "24px 4px 8px" }}>Keep track of who's ahead with a friend, so you know who covers next time. No sign-up, and we store nothing.</p>
+        <p style={{ ...S.muted, fontSize: 15, margin: "24px 4px 8px" }}>Keep track of who's ahead with a friend, so you know who covers next time. No sign-up, and Schplitz stores nothing.</p>
       )}
       <Button icon="add" onClick={onStart}>Start a tally</Button>
       <Button variant="ghost" icon="upload_file" onClick={() => fileInput.current?.click()}>Open a full copy</Button>
@@ -119,7 +119,8 @@ export function Start({ onBack, onCreate }) {
         <Field label="Name for the group (optional)" value={form.name} onChange={set("name")} maxLength={50} placeholder="Padel crew" />
       )}
       <Field label={form.friends.length > 1 ? "A question only your group can answer" : "A question only you two can answer"} value={form.question} onChange={set("question")} maxLength={200}
-        placeholder="Where did we first meet?" hint="Anyone who sees a link can read the question, so keep it vague." />
+        placeholder="Where did we first meet?"
+        info="Anyone with a link can read the question, so keep it vague. Everything else in a link is locked." />
       <AnswerFields answer={form.answer} setAnswer={v => setForm(f => ({ ...f, answer: v }))} confirm={form.confirm} setConfirm={v => setForm(f => ({ ...f, confirm: v }))} />
       <Button disabled={!ready || busy} onClick={submit}>{busy ? "Setting up…" : "Start"}</Button>
       <p style={S.muted}>Links only open with the answer. It never leaves your phone.</p>

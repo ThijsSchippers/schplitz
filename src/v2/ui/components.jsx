@@ -1,5 +1,5 @@
 // Shared building blocks for the v2 screens.
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ICON_PATHS } from "./icons.js";
 import { CATEGORIES, TILE_ORDER, OTHER } from "../categories.js";
 import { C, S, FONT } from "./theme.js";
@@ -47,12 +47,29 @@ export function TopBar({ title, onBack, right }) {
 }
 
 /** A labelled input. The hint is announced as the input's description, not as part of its name. */
-export function Field({ label, hint, ...input }) {
+/**
+ * A labelled text input. hint: a line under the input. info: an explanation behind an
+ * info button next to the label; screen readers get it as the input's description either way.
+ */
+export function Field({ label, hint, info, ...input }) {
   const id = useId();
+  const [showInfo, setShowInfo] = useState(false);
+  const describedBy = [hint && `${id}-hint`, info && `${id}-info`].filter(Boolean).join(" ") || undefined;
   return (
     <div style={S.label}>
-      <label htmlFor={id}>{label}</label>
-      <input id={id} style={S.input} aria-describedby={hint ? `${id}-hint` : undefined} {...input} />
+      <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <label htmlFor={id}>{label}</label>
+        {info && (
+          <button type="button" aria-label="More info" aria-expanded={showInfo} aria-controls={`${id}-info`} onClick={() => setShowInfo(v => !v)}
+            style={{ ...ICON_BUTTON, padding: 13, margin: "-13px -9px", color: showInfo ? C.accent : C.muted }}>
+            <Icon name="info" size={18} />
+          </button>
+        )}
+      </span>
+      {info && (
+        <span id={`${id}-info`} hidden={!showInfo} style={{ fontSize: 13, color: C.soft, background: C.field, borderRadius: 10, padding: "8px 10px" }}>{info}</span>
+      )}
+      <input id={id} style={S.input} aria-describedby={describedBy} {...input} />
       {hint && <span id={`${id}-hint`} style={{ fontSize: 12, color: C.muted }}>{hint}</span>}
     </div>
   );
