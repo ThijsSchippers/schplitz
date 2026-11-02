@@ -13,7 +13,7 @@
 // phone does detect a forged summary for its own writer, and `verify` detects any
 // summary that doesn't match a complete log on this phone. See docs/v2.0.md §8.
 
-import { CATEGORIES, OTHER, isCategory } from "./categories.js";
+import { CATEGORIES, isCategory } from "./categories.js";
 import { localDayNumber, randomHex, toHex, utf8 } from "./encoding.js";
 import {
   SchplitzError, MAX_MEMBERS, MAX_MEMBERS_COMBINED, QUERY_REASONS, TALLY_ID, checkName, checkQuestion, checkPayload,
@@ -509,10 +509,13 @@ export function usualAmount(tally, category) {
   return t && t[0] > 0 ? Math.round(t[1] / t[0]) : null;
 }
 
-/** "About 2 rounds of drinks": the most-used category that expresses the amount in 1–5 units. */
+/**
+ * "About 2 rounds of drinks": the most-used category that expresses the amount in 1–5 units.
+ * Categories without a unit name (Something else, Stays, Transport, Tickets) are never used.
+ */
 export function socialUnits(tally, amount) {
   const best = Object.entries(categoryTotals(tally))
-    .filter(([k, [count, sum]]) => Number(k) !== OTHER && count > 0 && sum > 0)
+    .filter(([k, [count, sum]]) => CATEGORIES[k]?.one && count > 0 && sum > 0)
     .map(([k, [count, sum]]) => ({ category: Number(k), count, units: Math.round(Math.abs(amount) / (sum / count)) }))
     .filter(o => o.units >= 1 && o.units <= 5)
     .sort((a, b) => b.count - a.count || a.category - b.category)[0];

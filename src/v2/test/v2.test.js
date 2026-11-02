@@ -8,7 +8,7 @@ import {
 import { deriveKey, encodeLink, decodeLink, readHeader, selectWindow, LINK_BUDGET } from "../link.js";
 
 const TODAY = 20_400;            // a fixed day number, so windows are deterministic
-const COFFEE = 7, MEALS = 2, DRINKS = 6, STAYS = 1;
+const COFFEE = 7, MEALS = 2, DRINKS = 6, STAYS = 1, TRANSPORT = 4, TICKETS = 10;
 
 const sumOf = (nets) => Object.values(nets).reduce((a, b) => a + b, 0);
 const memberId = (t, name) => t.members.find(m => m.name === name).id;
@@ -309,13 +309,13 @@ describe("window and suggestions", () => {
     expect(selectWindow(sofia, TODAY).entries).toHaveLength(25);
   });
 
-  it("suggests a usual amount, except for Stays and Tickets", async () => {
+  it("suggests a usual amount, except for Stays, Transport and Tickets", async () => {
     const { sofia } = await pair();
     await addPayment(sofia, { category: COFFEE, amount: 700, at: TODAY });
     await addPayment(sofia, { category: COFFEE, amount: 780, at: TODAY });
-    await addPayment(sofia, { category: STAYS, amount: 24000, at: TODAY });
+    for (const category of [STAYS, TRANSPORT, TICKETS]) await addPayment(sofia, { category, amount: 24000, at: TODAY });
     expect(usualAmount(sofia, COFFEE)).toBe(740);
-    expect(usualAmount(sofia, STAYS)).toBeNull();
+    for (const category of [STAYS, TRANSPORT, TICKETS]) expect(usualAmount(sofia, category)).toBeNull();
   });
 
   it("expresses a balance in the tally's own categories", async () => {
@@ -323,6 +323,14 @@ describe("window and suggestions", () => {
     for (let i = 0; i < 5; i++) await addPayment(sofia, { category: DRINKS, amount: 2000, at: TODAY });
     await addPayment(sofia, { category: COFFEE, amount: 400, at: TODAY });
     expect(socialUnits(sofia, 4000)).toEqual({ category: DRINKS, units: 2 });
+  });
+
+  it("never expresses a balance in Stays, Transport or Tickets", async () => {
+    const { sofia } = await pair();
+    for (const category of [STAYS, TRANSPORT, TICKETS])
+      for (let i = 0; i < 5; i++) await addPayment(sofia, { category, amount: 4000, at: TODAY });
+    await addPayment(sofia, { category: MEALS, amount: 4000, at: TODAY });
+    expect(socialUnits(sofia, 8000)).toEqual({ category: MEALS, units: 2 });
   });
 });
 
