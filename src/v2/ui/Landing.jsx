@@ -392,7 +392,7 @@ export default function Landing({ onOpen }) {
           <p className="ld-sub" data-reveal>Straight answers to what people ask.</p>
           <div className="ld-spec" data-reveal>
             <dl>{SPEC.map(([k, v]) => <Fragment key={k}><dt>{k}</dt><dd>{v}</dd></Fragment>)}</dl>
-            <p>For the technical crowd: For the technical crowd: AES-256-GCM, keys from PBKDF2-SHA256 with 600,000 rounds, and the <a href="https://github.com/thijsschippers/schplitz">code is open</a>.</p>
+            <p>For the technical crowd: AES-256-GCM, keys from PBKDF2-SHA256 with 600,000 rounds, and the <a href="https://github.com/thijsschippers/schplitz">code is open</a>.</p>
           </div>
         </section>
 
