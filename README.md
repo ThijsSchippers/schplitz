@@ -33,7 +33,14 @@ npm run check
 
 `npm run check` runs lint, unit tests, and both builds: the default configuration in `dist/` and Schplitz 2 at the root in `dist-launch/`. It explicitly sets the launch flag for each build, regardless of your local environment. The individual `test`, `lint`, and `build` commands remain available.
 
-Lint currently covers `src/v2/`. Browser walkthroughs live in `e2e/`; they currently require Playwright and Chromium installed separately, plus a running preview server. See the [test instructions](src/v2/README.md#tests) and [launch checks](docs/launch.md#before-launch).
+Lint currently covers `src/v2/`. To run the browser checks:
+
+```sh
+npm run e2e:install
+npm run e2e
+```
+
+On Linux, install browser system dependencies with `npx playwright install --with-deps chromium` if needed. The browser runner builds both configurations, starts preview servers on available local ports, runs the separate-phone, group, tab-sync, and launch scenarios, then closes its servers. No manually started server is needed. `npm run e2e:launch` runs only the launch scenarios, building both configurations first. CI runs the full suite.
 
 ## Inside the project
 

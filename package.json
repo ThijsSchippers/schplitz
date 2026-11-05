@@ -1,6 +1,6 @@
 {
   "name": "schplitz",
-  "description": "Privacy-first expense splitting — AES-256-GCM, no server, no account",
+  "description": "Privacy-first expense splitting \u2014 AES-256-GCM, no server, no account",
   "version": "1.0.0",
   "homepage": "https://schplitz.com",
   "repository": {
@@ -17,9 +17,10 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src/v2",
-    "e2e": "node e2e/two-phones.cjs && node e2e/more-paths.cjs && node e2e/two-tabs.cjs && node e2e/groups.cjs",
-    "e2e:launch": "node e2e/launch.cjs",
-    "check": "node scripts/check.mjs"
+    "e2e": "node scripts/e2e.mjs",
+    "e2e:launch": "node scripts/e2e.mjs --launch",
+    "check": "node scripts/check.mjs",
+    "e2e:install": "playwright install chromium"
   },
   "dependencies": {
     "qrcode-generator": "^1.4.4",
@@ -38,6 +39,7 @@
     "fake-indexeddb": "^6.0.0",
     "globals": "^15.15.0",
     "jsdom": "^29.0.1",
+    "playwright": "1.64.1",
     "vite": "^5.0.8",
     "vitest": "^4.1.2"
   }

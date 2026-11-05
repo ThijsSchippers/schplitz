@@ -2,7 +2,7 @@
 // Run against a production build:
 //   npm run build && npx vite preview --port 4173 --strictPort &
 //   node e2e/two-phones.cjs
-// Needs Playwright with Chromium (preinstalled in the Claude Code cloud environment).
+// Install Chromium with npm run e2e:install; npm run e2e manages builds and servers.
 // Env: BASE (default http://localhost:4173/v2/), SHOTS (screenshot folder, default: none).
 const { chromium } = require("playwright");
 const BASE = process.env.BASE ?? "http://localhost:4173/v2/";
@@ -133,5 +133,6 @@ const shots = [];
 
   for (const [n, p] of [["sofia", sofia], ["liam", liam], ["v1", old]]) console.log(n, "errors:", p.errors.length ? p.errors : "none");
   await browser.close();
+  if ([sofia, liam, old].some(phone => phone.errors.length)) throw new Error("Browser console errors occurred");
   console.log("screens:", shots.join(", "));
 })().catch(e => { console.error("FAILED:", e.message); process.exit(1); });

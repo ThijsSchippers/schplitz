@@ -27,3 +27,9 @@ jobs:
 
       - name: Lint, test, and build both launch configurations
         run: npm run check
+
+      - name: Install Chromium and system dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser scenarios and launch checks
+        run: npm run e2e
