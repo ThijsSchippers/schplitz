@@ -4,9 +4,9 @@ Shared expenses, without an account. [Open Schplitz](https://schplitz.com).
 
 ## Why I built it
 
-I was tired of expense-splitting apps that seemed to come with a for-profit, data-mining backstory. I just wanted to keep track of shared expenses with friends.
+I was tired of expense-splitting apps that seemed to come with some for-profit, data-mining backstory. I just want to keep track of shared expenses with friends.
 
-An Excel sheet got me part of the way, but different currencies and changing groups needed something smarter. Schplitz is my attempt at that: a shared tally that tells you whose turn it is, with encrypted updates you send through the chat you already use.
+Excel got me part of the way, but different currencies and different groups needed something smarter. Schplitz is my attempt at that: a shared tally that tells you whose turn it is, with encrypted updates you send through the chat you already use.
 
 ## How it works
 
