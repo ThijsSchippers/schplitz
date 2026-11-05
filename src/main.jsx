@@ -13,5 +13,5 @@ if (import.meta.env.VITE_V2_AT_ROOT === 'true') {
   }
   import('./v2/ui/Site.jsx').then(({ default: Site }) => root.render(<React.StrictMode><Site /></React.StrictMode>));
 } else {
-  import('./App.jsx').then(({ default: App }) => root.render(<React.StrictMode><App /></React.StrictMode>));
+  import('./legacy/App.jsx').then(({ default: App }) => root.render(<React.StrictMode><App /></React.StrictMode>));
 }

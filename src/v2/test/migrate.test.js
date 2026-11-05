@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from "vitest";
-import { encrypt, encryptCompressed, compressToUrl } from "../../utils.js";
+import { encrypt, encryptCompressed, compressToUrl } from "../../legacy/utils.js";
 import {
   readV1Storage, convertFromDevice, shortId, reimportFromDevice, readV1Share, openV1Share, applyV1Share,
   looksLikeMismatchedAnswer, deriveV1Identity,

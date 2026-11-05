@@ -9,7 +9,9 @@
 // phone; the other person's is a provisional copy until their own version arrives.
 // Converted entries are frozen: they can be sorted and disputed, not edited.
 
-import { normalizeAnswer, validateExpense, decrypt, decryptCompressed, decompressFromUrl, CURRENCIES, FALLBACK_RATES } from "../utils.js";
+import { validateExpense, decrypt, decryptCompressed, decompressFromUrl } from "../legacy/utils.js";
+import { CURRENCIES, FALLBACK_RATES } from "../shared/currencies.js";
+import { normalizeAnswer } from "../shared/identity.js";
 import { ABOUT_EVEN, addPayment, emptySummary, foldLog, logOf, replaceLog } from "./tally.js";
 import { OTHER } from "./categories.js";
 import { KDF_ITERATIONS, deriveKey } from "./link.js";

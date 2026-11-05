@@ -56,7 +56,7 @@
 //   w   { writer ID: { m member, s, h, n, nl?, c, f?, fl flags } }   (flags: 1 legacy, 2 provisional)
 //   e   entries          pl { writer ID: [v1 IDs] } (provisional copies sent as ID lists)
 
-import { MAX_NAME_LEN, MAX_QUESTION_LEN } from "../utils.js";
+import { MAX_NAME_LEN, MAX_QUESTION_LEN } from "../shared/identity.js";
 
 export const MAX_MEMBERS = 10;                // for starting a tally and adding people
 // What a link and a merged tally may hold. Higher than MAX_MEMBERS because two phones can

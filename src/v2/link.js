@@ -7,7 +7,7 @@
 // and show the question before decrypting. It's bound to the ciphertext as additional
 // authenticated data, so it can't be altered or moved onto another payload.
 
-import { normalizeAnswer } from "../utils.js";
+import { normalizeAnswer } from "../shared/identity.js";
 import { WINDOW_DAYS, WINDOW_MIN, dayNumber, allEntries, entryOf, openDisputes } from "./tally.js";
 import { SchplitzError, TALLY_ID, checkPayload, FLAG_LEGACY, FLAG_PROVISIONAL } from "./schema.js";
 import { deflate, inflate, fromBase64Url, fromHex, toBase64Url, toHex, utf8 } from "./encoding.js";
