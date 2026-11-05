@@ -18,7 +18,7 @@ Updates travel in encrypted links. Your friends open a link to bring their tally
 
 ## Run locally
 
-Install dependencies with npm, then start Vite:
+Use Node.js 24 (the version in `.nvmrc`, also used by CI). If you use nvm, run `nvm install` and `nvm use` first. Install dependencies with npm, then start Vite:
 
 ```sh
 npm ci
@@ -28,10 +28,10 @@ npm run dev
 Open [localhost:5173/v2/](http://localhost:5173/v2/) for Schplitz 2. By default, the root serves Schplitz 1; `/classic/` also serves the old app. The build-time `VITE_V2_AT_ROOT=true` switch moves Schplitz 2 to the root. See the [launch guide](docs/launch.md) for the full routing and rollback behavior.
 
 ```sh
-npm test
-npm run lint
-npm run build
+npm run check
 ```
+
+`npm run check` runs lint, unit tests, and both builds: the default configuration in `dist/` and Schplitz 2 at the root in `dist-launch/`. It explicitly sets the launch flag for each build, regardless of your local environment. The individual `test`, `lint`, and `build` commands remain available.
 
 Lint currently covers `src/v2/`. Browser walkthroughs live in `e2e/`; they currently require Playwright and Chromium installed separately, plus a running preview server. See the [test instructions](src/v2/README.md#tests) and [launch checks](docs/launch.md#before-launch).
 
