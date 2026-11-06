@@ -14,6 +14,7 @@
   --schplitz-on-accent: var(--schplitz-cream);
   --schplitz-other: #7048C8;
   --schplitz-danger: #B3261E;
+  --schplitz-danger-border: #B3261E55;
   --schplitz-danger-fill: var(--schplitz-danger);
   --schplitz-ok: #2E7D32;
   --schplitz-navy: #1B2A55;

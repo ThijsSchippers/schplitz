@@ -21,6 +21,7 @@ export const C = {
   onAccent: "var(--schplitz-on-accent)",
   other: "var(--schplitz-other)",
   danger: "var(--schplitz-danger)",
+  dangerBorder: "var(--schplitz-danger-border)",
   dangerFill: "var(--schplitz-danger-fill)",
   ok: "var(--schplitz-ok)",
   navy: "var(--schplitz-navy)",

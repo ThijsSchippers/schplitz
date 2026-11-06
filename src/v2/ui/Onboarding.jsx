@@ -27,7 +27,7 @@ export function Home({ tallies, v1, onOpen, onStart, onConvert, onOpenFile, onIn
     <>
       <header style={{ ...S.row, minHeight: 44 }}>
         <h1 style={{ ...S.h1, flex: 1, display: "flex", alignItems: "center", gap: 10 }}>
-          <span aria-hidden="true" style={{ width: 34, height: 34, borderRadius: 11, background: `linear-gradient(135deg, ${C.purple}, #8FA8F5)`, color: C.text,
+          <span aria-hidden="true" style={{ width: 34, height: 34, borderRadius: 11, background: `linear-gradient(135deg, ${C.purple}, ${C.accentBorder})`, color: C.text,
             display: "grid", placeItems: "center", fontSize: 19 }}>S</span>
           Schplitz
         </h1>
