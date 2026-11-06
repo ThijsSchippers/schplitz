@@ -1,18 +1,38 @@
+import "./tokens.css";
+
 // Colours, fonts and shared styles: the light purple-and-blue look of the landing page
-// (Landing.jsx). Styles are inline objects, so the CSP needs no extra style sources.
+// (Landing.jsx). Both use tokens.css as the source of shared values.
 // Text colours meet WCAG AA (4.5:1) on bg, card and accentTint:
 //   text ≥ 10, soft ≥ 8, muted ≥ 5.7, accent ≥ 4.9, other ≥ 5.3, danger ≥ 5.6, ok ≥ 4.7 (card and bg only).
 //   On navy: cream 13.7, mist 10.7. Cream on accent 5.6; white on dangerFill 6.5.
+// CSS owns the values; these references keep inline styles readable.
 export const C = {
-  bg: "#F5F4FE", card: "#FFFFFF", cardBorder: "#E2DFFE", field: "#FFFFFF", fieldBorder: "#CFC9F3",
-  text: "#3C315B", soft: "#4A4170", muted: "#5F5688",
-  accent: "#2F5FD0", accentTint: "#E6F0FF", accentBorder: "#8FA8F5", onAccent: "#FFFDF8",
-  other: "#7048C8", danger: "#B3261E", dangerFill: "#B3261E", ok: "#2E7D32",
-  // From the landing page, for the hero card and highlights.
-  navy: "#1B2A55", navyEnd: "#2B2F7A", mist: "#D6E2FF", cream: "#FFFDF8", purple: "#AB9FF2", lav: "#E2DFFE", butter: "#FFFFC4",
+  bg: "var(--schplitz-bg)",
+  card: "var(--schplitz-card)",
+  cardBorder: "var(--schplitz-card-border)",
+  field: "var(--schplitz-field)",
+  fieldBorder: "var(--schplitz-field-border)",
+  text: "var(--schplitz-text)",
+  soft: "var(--schplitz-soft)",
+  muted: "var(--schplitz-muted)",
+  accent: "var(--schplitz-accent)",
+  accentTint: "var(--schplitz-accent-tint)",
+  accentBorder: "var(--schplitz-accent-border)",
+  onAccent: "var(--schplitz-on-accent)",
+  other: "var(--schplitz-other)",
+  danger: "var(--schplitz-danger)",
+  dangerFill: "var(--schplitz-danger-fill)",
+  ok: "var(--schplitz-ok)",
+  navy: "var(--schplitz-navy)",
+  navyEnd: "var(--schplitz-navy-end)",
+  mist: "var(--schplitz-mist)",
+  cream: "var(--schplitz-cream)",
+  purple: "var(--schplitz-purple)",
+  lav: "var(--schplitz-lav)",
+  butter: "var(--schplitz-butter)",
 };
 
-export const FONT = "ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+export const FONT = "var(--schplitz-font)";
 
 export const S = {
   page: { minHeight: "100dvh", background: C.bg, color: C.text, fontFamily: FONT, display: "flex", justifyContent: "center" },
