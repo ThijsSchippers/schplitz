@@ -1,9 +1,11 @@
 // The React screens, rendered in jsdom with an in-memory IndexedDB.
 import "fake-indexeddb/auto";
-import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen, within, fireEvent } from "@testing-library/react";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { render, screen, within, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "../ui/App.jsx";
+import * as workflows from "../app.js";
+import { openCache } from "../cache.js";
 
 const rateFor = async () => ({ rate: 1, estimated: false });
 
@@ -13,7 +15,8 @@ beforeEach(() => {
 });
 
 async function startPair(user) {
-  render(<App cacheName={`screens-${crypto.randomUUID()}`} rateFor={rateFor} />);
+  const cacheName = `screens-${crypto.randomUUID()}`;
+  render(<App cacheName={cacheName} rateFor={rateFor} />);
   await user.click(await screen.findByRole("button", { name: "Start a tally" }));
   await user.type(screen.getByLabelText("Your name"), "Sofia");
   await user.type(screen.getByLabelText("Who's it with?"), "Liam");
@@ -23,6 +26,7 @@ async function startPair(user) {
   await user.click(screen.getByRole("button", { name: "Start" }));
   const invite = await screen.findByRole("dialog", { name: "Invite Liam" }, { timeout: 5000 });
   await user.click(within(invite).getByRole("button", { name: "Close" }));
+  return cacheName;
 }
 
 async function logPayment(user, category, keys, add) {
@@ -157,3 +161,35 @@ describe("landing page", () => {
     expect(skipLanding({ hash: "", local: broken, session: broken })).toBe(false);
   });
 });
+
+
+it("finishes a pending payment save without navigating away from home", async () => {
+  const user = userEvent.setup();
+  const cacheName = await startPair(user);
+  const pending = Promise.withResolvers();
+  const record = workflows.recordPayment;
+  const delayed = vi.spyOn(workflows, "recordPayment").mockImplementation(async (...args) => {
+    await pending.promise;
+    return record(...args);
+  });
+  try {
+    await user.click(screen.getByRole("button", { name: "I paid" }));
+    await user.click(screen.getByRole("button", { name: "Drinks" }));
+    await user.click(screen.getByRole("button", { name: "2" }));
+    await user.click(screen.getByRole("button", { name: "4" }));
+    await user.click(screen.getByRole("button", { name: "Add drinks" }));
+    expect(screen.getByRole("button", { name: "Saving…" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("button", { name: "Start a tally" })).toBeInTheDocument();
+    await act(async () => { pending.resolve(); await delayed.mock.results[0].value; });
+    expect(screen.getByRole("button", { name: "Start a tally" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    const cache = await openCache(cacheName);
+    try {
+      const [tally] = await cache.listTallies();
+      const entries = Object.values(tally.logs).flatMap(log => Object.values(log));
+      expect(entries).toEqual([expect.objectContaining({ t: "pay", a: 2400 })]);
+    } finally { cache.close(); }
+  } finally { pending.resolve(); delayed.mockRestore(); }
+}, 20_000);
