@@ -32,6 +32,14 @@ export default [
     },
   },
   {
+    files: ["src/v2/tally/**/*.js"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        paths: [{ name: "../tally.js", message: "Import sibling tally modules directly to keep the public entry point out of dependency cycles." }],
+      }],
+    },
+  },
+  {
     // Test fakes stand in for async APIs like fetch without awaiting anything.
     files: ["src/v2/test/**/*.{js,jsx}"],
     rules: { "require-await": "off" },

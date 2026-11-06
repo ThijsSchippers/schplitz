@@ -26,16 +26,23 @@ export function mergePayload(tally, payload) {
   // Someone writing from a new writer while an earlier phone of theirs has history: a new
   // or wiped phone. Their balance is restored by any link; older line items need a full copy.
   const hasHistory = (member) => Object.values(tally.writers).some(writer => writer.member === member && !writer.legacy && writer.summary.s > 0);
-  for (const [writerId, receivedWriter] of Object.entries(payload.w))
-    if (!tally.writers[writerId] && !(receivedWriter.fl & FLAG_LEGACY) && receivedWriter.m !== tally.me.member && hasHistory(receivedWriter.m) && !report.newPhones.includes(receivedWriter.m))
+  for (const [writerId, receivedWriter] of Object.entries(payload.w)) {
+    if (!tally.writers[writerId] && !(receivedWriter.fl & FLAG_LEGACY) &&
+        receivedWriter.m !== tally.me.member && hasHistory(receivedWriter.m) &&
+        !report.newPhones.includes(receivedWriter.m)) {
       report.newPhones.push(receivedWriter.m);
+    }
+  }
   const incomingV1Ids = (writerId) => new Set(payload.pl?.[writerId] ?? v1Ids(payload.e.filter(entry => entry.w === writerId)));
   for (const [writerId, receivedWriter] of Object.entries(payload.w)) {
     const incoming = summaryFrom(receivedWriter);
     const legacy = Boolean(receivedWriter.fl & FLAG_LEGACY), provisional = Boolean(receivedWriter.fl & FLAG_PROVISIONAL);
     const known = tally.writers[writerId];
 
-    if (!known) { tally.writers[writerId] = { member: receivedWriter.m, summary: incoming, legacy, provisional }; continue; }
+    if (!known) {
+      tally.writers[writerId] = { member: receivedWriter.m, summary: incoming, legacy, provisional };
+      continue;
+    }
     if (known.member !== receivedWriter.m) {
       report.conflicts.push({ writer: writerId, reason: "writer claimed by another member" });
       skip.add(writerId);
@@ -72,8 +79,11 @@ export function mergePayload(tally, payload) {
       report.replaced.push({ writer: writerId, added: [...after].filter(l => !before.has(l)), removed: [...before].filter(l => !after.has(l)) });
       continue;
     }
-    if (receivedWriter.s > known.summary.s) known.summary = incoming;
-    else if (receivedWriter.s === known.summary.s && receivedWriter.h !== known.summary.h) report.conflicts.push({ writer: writerId, reason: "two different histories" });
+    if (receivedWriter.s > known.summary.s) {
+      known.summary = incoming;
+    } else if (receivedWriter.s === known.summary.s && receivedWriter.h !== known.summary.h) {
+      report.conflicts.push({ writer: writerId, reason: "two different histories" });
+    }
   }
 
   for (const entry of payload.e) {

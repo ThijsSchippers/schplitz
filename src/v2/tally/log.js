@@ -69,15 +69,18 @@ export async function chain(prev, entry) {
 
 // ─── folding a log into its summary ──────────────────────────────────────────
 
-export const PAY_FIELDS = ["k", "a", "c", "v", "p", "pd"];
-export const pick = (o, keys) => Object.fromEntries(keys.filter(k => Object.hasOwn(o, k)).map(k => [k, o[k]]));
+const PAY_FIELDS = ["k", "a", "c", "v", "p", "pd"];
+/** Copy only editable payment fields; protocol metadata is never editable. */
+export const paymentChanges = (changes) => Object.fromEntries(
+  PAY_FIELDS.filter(field => Object.hasOwn(changes, field)).map(field => [field, changes[field]])
+);
 
 /** Effective state of a writer's payments after its own edits and voids, by seq. */
 export function effectivePays(log) {
   const pays = new Map();
   for (const e of log) {
     if (e.t === "pay") pays.set(e.s, { ...e });
-    else if (e.t === "edit" && pays.has(e.r)) Object.assign(pays.get(e.r), pick(e.ch, PAY_FIELDS));
+    else if (e.t === "edit" && pays.has(e.r)) Object.assign(pays.get(e.r), paymentChanges(e.ch));
     else if (e.t === "void") pays.delete(e.r);
   }
   return pays;

@@ -22,7 +22,7 @@ import {
 
 import {
   emptySummary, logOf, entryOf, allEntries, putEntry, effectivePays, paymentState,
-  payEffect, addNets, canonical, chain, foldNets, PAY_FIELDS, pick,
+  payEffect, addNets, canonical, chain, foldNets, paymentChanges,
 } from "./tally/log.js";
 import { categoryOf, tallyName } from "./tally/views.js";
 import { mergePayload } from "./tally/merge.js";
@@ -181,7 +181,7 @@ function doAddPayment(tally, { category, amount, currency, value, participants, 
 
 async function doEditPayment(tally, seq, changes, at) {
   const pay = ownPay(tally, seq);
-  const ch = pick(changes, PAY_FIELDS);
+  const ch = paymentChanges(changes);
   const currency = ch.c ?? pay.c;
   if (ch.a !== undefined && ch.v === undefined && currency === tally.currency) ch.v = ch.a;
   if ((ch.c !== undefined || ch.a !== undefined) && currency !== tally.currency && ch.v === undefined)
@@ -250,7 +250,7 @@ async function doAcceptDispute(tally, ref, fix, at) {
     const edit = await doEditPayment(tally, seq, { p: remaining }, at);   // closes the dispute too
     return edit ?? append(tally, resolveFields(d, "accepted", { takeOver: true }), at);
   }
-  const changes = pick(fix, PAY_FIELDS);
+  const changes = paymentChanges(fix);
   if ((fix.void || Object.keys(changes).length) && frozen) throw notAllowed("Entries from Schplitz 1 can't be changed.");
   if (fix.void) return doVoidPayment(tally, seq, at);                     // closes the dispute too
   if (Object.keys(changes).length) await doEditPayment(tally, seq, changes, at);

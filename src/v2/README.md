@@ -65,6 +65,7 @@ npm run lint            # ESLint, scoped to src/v2
 
 | File | Covers |
 |---|---|
+| `test/tally-protocol.test.js` | Fixed pre-refactor summary/hash fixture, canonical key ordering, unknown entries, and log integrity. |
 | `test/v2.test.js` | Tally behaviour, links, the window, disputes. |
 | `test/migrate.test.js` | v1 conversion. Fixtures are produced with the real v1 code in `src/legacy/utils.js`. |
 | `test/hardening.test.js` | Validation, hostile links, concurrency, rounding, and the other fixes from the code review. |
