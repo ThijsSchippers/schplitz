@@ -3,12 +3,11 @@
 // The open tally is one object that tally.js mutates in place; after each change it's
 // saved to the cache and the screen re-renders. Screens get it as a prop and read it.
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { openCache, requestPersistence } from "../cache.js";
 import {
-  save, startTally, openLink, unlockLink, completeJoin, recordPayment, markShared, v1Status, convertDeviceV1, valueInTallyCurrency,
+  changeTally, updatePayment, startTally, openLink, unlockLink, completeJoin, recordPayment, markShared, v1Status, convertDeviceV1,
   readLinkFile, backupDue, markBackedUp, readOldLink, tallyForOldLink, openOldLink,
 } from "../app.js";
-import { editPayment, voidPayment, notMe, askAbout, acceptDispute, keepAsIs, addPaidBack, setFreshStart, recategorize, renameTally, addMember, paymentState } from "../tally.js";
+import { voidPayment, notMe, askAbout, acceptDispute, keepAsIs, addPaidBack, setFreshStart, recategorize, renameTally, addMember, paymentState } from "../tally.js";
 import { defaultRate } from "../migrate.js";
 import { errorText, hero, nameOf } from "./format.js";
 import { Toast } from "./components.jsx";
@@ -21,6 +20,9 @@ import { browserKind } from "./environment.js";
 import { USED_KEY } from "./visits.js";
 import { S, GLOBAL_CSS } from "./theme.js";
 
+import { initialNavigation, navigationReducer } from "./navigation.js";
+import { useBrowserSession, useInstallPrompt, linkOrigin } from "./useBrowserSession.js";
+
 const TOAST_MS = 3200;
 
 const MESSAGES = {
@@ -28,17 +30,6 @@ const MESSAGES = {
   question: "I've got a question about one of the payments.",
   fresh: "I've started our tally fresh from here.",
 };
-
-/** Links point back at wherever this app is served (e.g. /v2/ during the preview). */
-const linkOrigin = () => `${location.origin}${location.pathname.replace(/\/[^/]*$/, "")}`;
-
-/** Takes a link (`#s=`, or an old `#share=`) out of the address bar, so reloading doesn't open it again. */
-function takeLinkFromAddressBar() {
-  if (!location.hash.startsWith("#s=") && !location.hash.startsWith("#share=")) return null;
-  const url = location.href;
-  history.replaceState(null, "", location.pathname + location.search);
-  return url;
-}
 
 /** A review sheet is worth showing when something needs a look; otherwise a toast is enough. */
 const needsReview = (report) =>
@@ -51,13 +42,13 @@ export default function App({ rateFor = defaultRate, cacheName, firstView = "hom
   const [cache, setCache] = useState(null);
   const [tallies, setTallies] = useState([]);
   const [v1, setV1] = useState(null);
-  const [view, setView] = useState({ name: "loading" });
-  const [current, setCurrent] = useState(null);           // { tally, key }: the open tally
+  const [{ view, current, sheet, present }, dispatch] = useReducer(navigationReducer, initialNavigation);
+  const setView = useCallback(nextView => dispatch({ type: "view", view: nextView }), []);
+  const setSheet = nextSheet => dispatch({ type: "sheet", sheet: nextSheet });
+  const setPresent = members => dispatch({ type: "present", members });
   const [, rerender] = useReducer(x => x + 1, 0);
   const [toast, setToast] = useState(null);
-  const [sheet, setSheet] = useState(null);               // { kind: "share" | "review" | "sort" | "fullCopy", ... }
-  const [present, setPresent] = useState([]);             // groups: who's here today (member IDs)
-  const [installPrompt, setInstallPrompt] = useState(null);
+  const { canInstall, install } = useInstallPrompt();
   const lastLink = useRef(null);                          // the link this page was opened with, for the in-app hint
   const toastTimer = useRef();
   const currentRef = useRef(null);
@@ -69,81 +60,63 @@ export default function App({ rateFor = defaultRate, cacheName, firstView = "hom
     toastTimer.current = setTimeout(() => setToast(null), TOAST_MS);
   }, []);
 
-  const refresh = useCallback(async (c) => {
+  useEffect(() => () => clearTimeout(toastTimer.current), []);
+
+  const refresh = useCallback(async (c, signal) => {
     const list = await c.listTallies();
+    if (signal?.aborted) return;
     setTallies(list);
     // Returning visitors skip the landing page (Site.jsx).
     if (list.length) try { localStorage.setItem(USED_KEY, "1"); } catch { /* storage blocked: harmless */ }
-    setV1(await v1Status(c).catch(() => null));
+    const status = await v1Status(c).catch(() => null);
+    if (!signal?.aborted) setV1(status);
   }, []);
 
   const showTally = useCallback((tally, key, nextSheet = null) => {
-    setCurrent({ tally, key });
-    setPresent(tally.members.map(m => m.id));
-    setSheet(nextSheet);
-    setView({ name: "tally" });
+    dispatch({ type: "openTally", tally, key, sheet: nextSheet });
   }, []);
 
-  const handleLink = useCallback(async (c, url) => {
+  const handleLink = useCallback(async (c, url, signal) => {
     lastLink.current = url;
     try {
       if (url.includes("#share=")) {
         const share = await readOldLink(url);
-        setCurrent(null); setSheet(null);
-        setView({ name: "oldLink", share, needsName: !(await tallyForOldLink(c, share)) });
+        const needsName = !(await tallyForOldLink(c, share));
+        if (!signal?.aborted) dispatch({ type: "oldLink", share, needsName });
         return;
       }
       const r = await openLink(c, url);
-      if (r.kind === "join") { setCurrent(null); setSheet(null); setView({ name: "join", url, header: r.header }); return; }
+      if (signal?.aborted) return;
+      if (r.kind === "join") { dispatch({ type: "join", url, header: r.header }); return; }
       const { report, tally } = r;
       showTally(tally, r.key, needsReview(report) ? { kind: "review", report } : null);
       if (!needsReview(report))
         flash(report.newEntries.length ? `Got ${nameOf(tally, tally.writers[report.newEntries[0].w]?.member)}'s update. ${hero(tally).title}.` : "Nothing new in this link.");
     } catch (err) {
-      setView({ name: "home" });
+      if (signal?.aborted) return;
+      dispatch({ type: "home" });
       flash(errorText(err), true);
     }
   }, [flash, showTally]);
 
-  // Start: open the cache, handle a link in the address bar, then listen for links and other tabs.
-  useEffect(() => {
-    let alive = true;
-    const cleanups = [];
-    (async () => {
-      const c = await openCache(cacheName);
-      if (!alive) { c.close(); return; }       // React's development double-start
-      cleanups.push(() => c.close());
+  useBrowserSession({
+    cacheName,
+    onReady: async (c, signal) => {
       setCache(c);
-      requestPersistence();
-      await refresh(c);
-      const url = takeLinkFromAddressBar();
-      if (url) await handleLink(c, url); else setView({ name: firstView === "start" ? "start" : "home" });
-      if (!alive) return;
-
-      const onHash = () => { const u = takeLinkFromAddressBar(); if (u) handleLink(c, u); };
-      window.addEventListener("hashchange", onHash);
-      cleanups.push(() => window.removeEventListener("hashchange", onHash));
-
-      // Another tab saved: reload instead of later overwriting its changes.
-      cleanups.push(c.onOtherTabChange(async (id) => {
-        await refresh(c);
-        if (currentRef.current?.tally.id !== id) return;
-        const [tally, key] = await Promise.all([c.loadTally(id), c.loadKey(id)]);
-        if (tally && key) setCurrent({ tally, key });
-        else { setCurrent(null); setSheet(null); setView({ name: "home" }); }
-      }));
-    })();
-    return () => { alive = false; cleanups.forEach(f => f()); };
-  }, []);   // eslint-disable-line react-hooks/exhaustive-deps -- runs once; handlers read state through refs
-
-  // "Install Schplitz": Android and desktop browsers offer it; iPhones never fire this (docs §4.1).
-  useEffect(() => {
-    const onPrompt = (e) => { e.preventDefault(); setInstallPrompt(e); };
-    const onInstalled = () => setInstallPrompt(null);
-    window.addEventListener("beforeinstallprompt", onPrompt);
-    window.addEventListener("appinstalled", onInstalled);
-    return () => { window.removeEventListener("beforeinstallprompt", onPrompt); window.removeEventListener("appinstalled", onInstalled); };
-  }, []);
+      await refresh(c, signal);
+    },
+    onLocation: async (c, url, signal) => {
+      if (url) await handleLink(c, url, signal);
+      else setView({ name: firstView === "start" ? "start" : "home" });
+    },
+    onOtherTab: async (c, id, signal) => {
+      await refresh(c, signal);
+      if (signal.aborted || currentRef.current?.tally.id !== id) return;
+      const [tally, key] = await Promise.all([c.loadTally(id), c.loadKey(id)]);
+      if (!signal.aborted) dispatch({ type: "reload", id, tally, key });
+    },
+    onError: error => { dispatch({ type: "home" }); flash(errorText(error), true); },
+  });
 
   // ─── changes to the open tally ─────────────────────────────────────────────
 
@@ -151,10 +124,9 @@ export default function App({ rateFor = defaultRate, cacheName, firstView = "hom
   const change = useCallback(async (fn, { ok, share } = {}) => {
     const { tally } = currentRef.current;
     try {
-      await fn(tally);
-      await save(cache, tally);
+      await changeTally(cache, tally, fn);
       if (ok) flash(ok);
-      if (share) setSheet({ kind: "share", request: share });
+      if (share) dispatch({ type: "sheet", sheet: { kind: "share", request: share } });
     } catch (err) {
       flash(errorText(err), true);
     } finally {
@@ -163,9 +135,7 @@ export default function App({ rateFor = defaultRate, cacheName, firstView = "hom
   }, [cache, flash]);
 
   async function goHome() {
-    setCurrent(null);
-    setSheet(null);
-    setView({ name: "home" });
+    dispatch({ type: "home" });
     await refresh(cache);
   }
 
@@ -191,7 +161,7 @@ export default function App({ rateFor = defaultRate, cacheName, firstView = "hom
     try {
       const found = await readLinkFile(file);
       if (found.kind === "link") await handleLink(cache, found.url);
-      else setView({ name: "oldLink", share: found.share, needsName: !(await tallyForOldLink(cache, found.share)) });
+      else dispatch({ type: "oldLink", share: found.share, needsName: !(await tallyForOldLink(cache, found.share)) });
     } catch (err) { flash(errorText(err), true); }
   }
 
@@ -207,12 +177,6 @@ export default function App({ rateFor = defaultRate, cacheName, firstView = "hom
     await refresh(cache);
     showTally(tally, key);
     flash(OLD_LINK_RESULT[outcome]);
-  }
-
-  async function install() {
-    installPrompt.prompt();
-    await installPrompt.userChoice.catch(() => null);
-    setInstallPrompt(null);
   }
 
   async function copyCurrentLink() {
@@ -240,22 +204,9 @@ export default function App({ rateFor = defaultRate, cacheName, firstView = "hom
     const { tally } = current;
     const { edit, dispute } = view;
     try {
-      if (!edit) {
-        await recordPayment(cache, tally, { ...fields, rateFor });
-        setView({ name: "tally" });
-        setSheet({ kind: "share", request: { lastCategory: fields.category } });
-        return;
-      }
-      // Only re-lock the rate when the amount, currency or date changed.
-      const day = edit.pd ?? edit.d;
-      const moneyChanged = fields.amount !== edit.a || fields.currency !== edit.c || fields.paidOn !== day;
-      const value = moneyChanged ? (await valueInTallyCurrency(tally, fields.amount, fields.currency, fields.paidOn, rateFor)).value : edit.v;
-      const changes = { k: fields.category, a: fields.amount, c: fields.currency, v: value, p: fields.participants, ...(fields.paidOn !== day ? { pd: fields.paidOn } : {}) };
-      if (dispute) await acceptDispute(tally, [dispute.w, dispute.s], changes);
-      else await editPayment(tally, edit.s, changes);
-      await save(cache, tally);
-      setView({ name: "details" });
-      setSheet({ kind: "share", request: {} });
+      if (edit) await updatePayment(cache, tally, edit, fields, { dispute, rateFor });
+      else await recordPayment(cache, tally, { ...fields, rateFor });
+      dispatch({ type: "paymentSaved", editing: Boolean(edit), category: fields.category });
     } catch (err) {
       flash(errorText(err), true);
     } finally {
@@ -277,7 +228,7 @@ export default function App({ rateFor = defaultRate, cacheName, firstView = "hom
     paidBack: (from, to, value) => change(t => addPaidBack(t, { from, to, value }), { ok: "Recorded", share: {} }),
     sort: () => setSheet({ kind: "sort" }),
     // They appear on the other phones with the next link. Whoever's marked as here stays marked.
-    addPerson: (name) => change(t => { const m = addMember(t, name); setPresent(p => [...p, m.id]); },
+    addPerson: (name) => change(t => { const m = addMember(t, name); dispatch({ type: "memberAdded", id: m.id }); },
       { ok: `Added ${name.trim()}`, share: { message: `I added ${name.trim()} to our tally.` } }),
     rename: (name) => change(t => renameTally(t, name), { ok: "Saved", share: {} }),
     fullCopy: () => setSheet({ kind: "fullCopy", mode: "send" }),
@@ -290,7 +241,7 @@ export default function App({ rateFor = defaultRate, cacheName, firstView = "hom
   switch (view.name) {
     case "home":
       screen = <Home tallies={tallies} v1={v1} onOpen={openTally} onStart={() => setView({ name: "start" })} onConvert={() => setView({ name: "convert" })}
-        onOpenFile={openFile} onInstall={installPrompt && !BROWSER.appleWebKit ? install : null} />;
+        onOpenFile={openFile} onInstall={canInstall && !BROWSER.appleWebKit ? install : null} />;
       break;
     case "start":
       screen = <Start onBack={goHome} onCreate={createTally} />;
@@ -315,7 +266,7 @@ export default function App({ rateFor = defaultRate, cacheName, firstView = "hom
     case "log":
       screen = current && (
         <LogPayment tally={current.tally} rateFor={rateFor} onSubmit={submitPayment} defaultParticipants={present.length ? present : undefined}
-          onCancel={() => setView({ name: view.edit ? "details" : "tally" })}
+          onCancel={() => dispatch({ type: "cancelPayment" })}
           initial={view.edit && { category: view.edit.k, amount: view.edit.a, currency: view.edit.c, paidOn: view.edit.pd ?? view.edit.d, participants: view.edit.p }} />
       );
       break;
