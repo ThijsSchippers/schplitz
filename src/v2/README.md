@@ -12,7 +12,7 @@ npm run build    # builds Schplitz 1 (dist/index.html) and the preview (dist/v2/
 
 | File | What it does |
 |---|---|
-| `app.js` | What the screens do, without React: start, join, open links, record payments, share, convert v1. Saves after every change. |
+| `app.js` | What the screens do, without React: start, join, open links, record and edit payments, share, convert v1. Saves after every change. |
 | `cache.js` | The phone's cache (IndexedDB): tallies, keys (non-extractable), and phone-only state. Losing it costs convenience, never the tally. |
 | `tally.js` | Public tally API: creation, joining, queued writes, and disputes. Re-exports the calculations and merge operations below. |
 | `tally/log.js` | Log access, integer splits, effective payments, and deterministic summary hashing. |
@@ -23,6 +23,8 @@ npm run build    # builds Schplitz 1 (dist/index.html) and the preview (dist/v2/
 | `schema.js` | **Field reference** for entries, summaries and payloads, limits, validation, `SchplitzError`. |
 | `encoding.js` | Hex, base64url, deflate with a size cap, minor units, day numbers. |
 | `categories.js` | The category codes and their social units. Codes are permanent. |
+| `ui/navigation.js` | Screen, tally, and sheet transitions, including stale tab-reload protection. |
+| `ui/useBrowserSession.js` | Cache lifetime, incoming links, cross-tab notifications, and install events. |
 | `ui/environment.js` | Which kind of browser this is (in-app browser, WebKit) for the hints in docs §4.1. |
 | `ui/qr.js` | QR codes for the share sheet (qrcode-generator, MIT), rendered as one SVG path. |
 | `ui/Landing.jsx`, `ui/Site.jsx` | The landing page (purples and blues, rounded images, scroll motion; off with reduced motion), and the rule for who sees it first. `ui/theme.js` gives the app the same colours and font. |
@@ -70,6 +72,9 @@ npm run lint            # ESLint, scoped to src/v2
 | `test/migrate.test.js` | v1 conversion. Fixtures are produced with the real v1 code in `src/legacy/utils.js`. |
 | `test/hardening.test.js` | Validation, hostile links, concurrency, rounding, and the other fixes from the code review. |
 | `test/app.test.js` | The cache and the app layer: two phones from invite to dispute, currencies, converting v1 data. |
+| `test/payment-workflows.test.js` | Payment edits, locked exchange rates, dispute corrections, and persistence failures. |
+| `test/navigation.test.js` | Related navigation state transitions and stale reloads. |
+| `test/browser-session.test.jsx` | Session cleanup, delayed startup, current event handlers, and install prompts. |
 | `test/ui-logic.test.js` | The numpad rules and the text on screen. |
 | `test/screens.test.jsx` | The React screens in jsdom: starting, logging, whose turn, details, the keyboard, focus in sheets, a group of three. |
 | `test/oldlinks.test.js` | Old Schplitz 1 links and text exports opened in Schplitz 2. |

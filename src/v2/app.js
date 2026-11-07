@@ -2,7 +2,7 @@
 // model, links, the phone's cache and v1 conversion. Every function that changes a
 // tally also saves it to the cache.
 
-import { createTally, joinTally, mergePayload, addPayment, renameTally, allEntries, dayNumber, settled } from "./tally.js";
+import { createTally, joinTally, mergePayload, addPayment, renameTally, allEntries, dayNumber, settled, editPayment, acceptDispute } from "./tally.js";
 import { deriveKey, encodeLink, decodeLink, readHeader } from "./link.js";
 import {
   V1_STORAGE_KEY, convertFromDevice, defaultRate, fingerprint, looksLikeMismatchedAnswer, readV1Storage, reimportFromDevice,
@@ -26,6 +26,13 @@ export async function save(cache, tally, localChanges) {
   withLocal(tally, localChanges);
   await cache.saveTally(tally);
   return tally;
+}
+
+/** Apply a domain change and persist it before reporting success to the UI. */
+export async function changeTally(cache, tally, change) {
+  const result = await change(tally);
+  await save(cache, tally);
+  return result;
 }
 
 // ─── starting and joining ────────────────────────────────────────────────────
@@ -106,6 +113,22 @@ export async function recordPayment(cache, tally, { category, amount, currency, 
   // Paying in the tally currency again ends the 12 hours of a foreign one.
   await save(cache, tally, { lastCurrency: currency === tally.currency ? null : { c: currency, at: Date.now() } });
   return entry;
+}
+
+/** Edit a payment or accept a disputed correction, preserving its locked rate unless money/date changed. */
+export async function updatePayment(cache, tally, payment, fields, { dispute, rateFor } = {}) {
+  const day = payment.pd ?? payment.d;
+  const moneyChanged = fields.amount !== payment.a || fields.currency !== payment.c || fields.paidOn !== day;
+  const value = moneyChanged
+    ? (await valueInTallyCurrency(tally, fields.amount, fields.currency, fields.paidOn, rateFor)).value
+    : payment.v;
+  const changes = {
+    k: fields.category, a: fields.amount, c: fields.currency, v: value, p: fields.participants,
+    ...(fields.paidOn !== day ? { pd: fields.paidOn } : {}),
+  };
+  return changeTally(cache, tally, () => dispute
+    ? acceptDispute(tally, [dispute.w, dispute.s], changes)
+    : editPayment(tally, payment.s, changes));
 }
 
 /** The currency preselected on the logging screen: a recent foreign one for 12 hours, else the tally's. */
