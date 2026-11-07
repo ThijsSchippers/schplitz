@@ -30,6 +30,8 @@ export function navigationReducer(state, action) {
     case "memberAdded":
       return { ...state, present: [...state.present, action.id] };
     case "paymentSaved":
+      // Saving can finish after Close, another link, or a new payment form.
+      if (state.current?.tally.id !== action.id || state.view !== action.fromView) return state;
       return {
         ...state, view: { name: action.editing ? "details" : "tally" },
         sheet: { kind: "share", request: action.editing ? {} : { lastCategory: action.category } },

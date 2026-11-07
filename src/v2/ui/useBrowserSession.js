@@ -21,8 +21,11 @@ export function useBrowserSession({ cacheName, onReady, onLocation, onOtherTab, 
     const { signal } = controller;
     const cleanups = [];
     const reportError = (error) => { if (!signal.aborted) handlers.current.onError(error); };
+    // Link merges and tab reloads must finish in arrival order. A failed event
+    // reports its error without preventing the next event from running.
+    let pending = Promise.resolve();
     const run = task => {
-      Promise.resolve().then(() => signal.aborted ? undefined : task()).catch(reportError);
+      pending = pending.then(() => signal.aborted ? undefined : task()).catch(reportError);
     };
     (async () => {
       const cache = await openCache(cacheName);
@@ -31,8 +34,11 @@ export function useBrowserSession({ cacheName, onReady, onLocation, onOtherTab, 
       requestPersistence();
       await handlers.current.onReady(cache, signal);
       if (signal.aborted) return;
-      await handlers.current.onLocation(cache, takeLinkFromAddressBar(), signal);
-      if (signal.aborted) return;
+      const initialUrl = takeLinkFromAddressBar();
+      run(() => handlers.current.onLocation(cache, initialUrl, signal));
+
+      // Subscribe before opening the initial link: decryption and storage can
+      // take long enough for another link or tab notification to arrive.
 
       const onHash = () => {
         const url = takeLinkFromAddressBar();

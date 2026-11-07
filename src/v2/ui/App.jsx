@@ -206,7 +206,7 @@ export default function App({ rateFor = defaultRate, cacheName, firstView = "hom
     try {
       if (edit) await updatePayment(cache, tally, edit, fields, { dispute, rateFor });
       else await recordPayment(cache, tally, { ...fields, rateFor });
-      dispatch({ type: "paymentSaved", editing: Boolean(edit), category: fields.category });
+      dispatch({ type: "paymentSaved", id: tally.id, fromView: view, editing: Boolean(edit), category: fields.category });
     } catch (err) {
       flash(errorText(err), true);
     } finally {

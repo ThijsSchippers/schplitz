@@ -131,3 +131,39 @@ it("offers the browser install prompt and clears it after use or installation", 
   window.dispatchEvent(later);
   expect(later.defaultPrevented).toBe(false);
 });
+
+it("does not lose a second link while the initial link is still opening", async () => {
+  const pending = Promise.withResolvers();
+  const { cache, handlers } = session();
+  const opened = [];
+  history.replaceState(null, "", "/v2/#s=first");
+  openCache.mockResolvedValue(cache);
+  handlers.onLocation.mockImplementation(async (_cache, url) => {
+    if (url.endsWith("#s=first")) await pending.promise;
+    opened.push(url);
+  });
+  renderHook(() => useBrowserSession(handlers));
+  await waitFor(() => expect(handlers.onLocation).toHaveBeenCalledOnce());
+  await act(async () => {
+    history.replaceState(null, "", "/v2/#s=second");
+    window.dispatchEvent(new Event("hashchange"));
+  });
+  await act(async () => pending.resolve());
+  await waitFor(() => expect(opened.map(url => new URL(url).hash)).toEqual(["#s=first", "#s=second"]));
+  expect(location.hash).toBe("");
+});
+
+it("processes browser notifications in order and continues after a failure", async () => {
+  const pending = Promise.withResolvers();
+  const { cache, handlers, notify } = session();
+  const error = new Error("read failed");
+  openCache.mockResolvedValue(cache);
+  handlers.onOtherTab.mockImplementationOnce(async () => { await pending.promise; throw error; });
+  renderHook(() => useBrowserSession(handlers));
+  await waitFor(() => expect(cache.onOtherTabChange).toHaveBeenCalledOnce());
+  await act(async () => { notify("first"); notify("second"); });
+  expect(handlers.onOtherTab).toHaveBeenCalledTimes(1);
+  await act(async () => pending.resolve());
+  expect(handlers.onError).toHaveBeenCalledWith(error);
+  expect(handlers.onOtherTab.mock.calls.map(call => call[1])).toEqual(["first", "second"]);
+});

@@ -35,9 +35,21 @@ describe("navigation", () => {
     for (const editing of [false, true]) {
       let state = reduce(open(), { type: "view", view: { name: "log", ...(editing ? { edit: {} } : {}) } });
       expect(reduce(state, { type: "cancelPayment" }).view.name).toBe(editing ? "details" : "tally");
-      state = reduce(state, { type: "paymentSaved", editing, category: 7 });
+      state = reduce(state, { type: "paymentSaved", id: tally.id, fromView: state.view, editing, category: 7 });
       expect(state.view.name).toBe(editing ? "details" : "tally");
       expect(state.sheet).toEqual({ kind: "share", request: editing ? {} : { lastCategory: 7 } });
     }
   });
+});
+
+
+it("ignores payment completion after leaving or reopening the payment screen", () => {
+  const editing = reduce(open(), { type: "view", view: { name: "log" } });
+  const saved = { type: "paymentSaved", id: tally.id, fromView: editing.view, editing: false, category: 7 };
+  const home = reduce(editing, { type: "home" });
+  expect(reduce(home, saved)).toBe(home);
+  const other = reduce(editing, { type: "openTally", tally: { ...tally, id: "two" }, key: "other" });
+  expect(reduce(other, saved)).toBe(other);
+  const reopened = reduce(reduce(editing, { type: "cancelPayment" }), { type: "view", view: { name: "log" } });
+  expect(reduce(reopened, saved)).toBe(reopened);
 });
