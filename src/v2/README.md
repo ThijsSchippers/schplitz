@@ -14,7 +14,10 @@ npm run build    # builds Schplitz 1 (dist/index.html) and the preview (dist/v2/
 |---|---|
 | `app.js` | What the screens do, without React: start, join, open links, record payments, share, convert v1. Saves after every change. |
 | `cache.js` | The phone's cache (IndexedDB): tallies, keys (non-extractable), and phone-only state. Losing it costs convenience, never the tally. |
-| `tally.js` | The tally: writers, entries, summaries, balances, disputes, merging a link. |
+| `tally.js` | Public tally API: creation, joining, queued writes, and disputes. Re-exports the calculations and merge operations below. |
+| `tally/log.js` | Log access, integer splits, effective payments, and deterministic summary hashing. |
+| `tally/views.js` | Read-only calculations: balances, categories, names, and whose turn it is. |
+| `tally/merge.js` | Validating and merging incoming updates; checking summaries against complete local logs. |
 | `link.js` | Links: key derivation, the correction window, the size budget, encrypt/decrypt. |
 | `migrate.js` | Bringing in v1 tallies: device storage, old links, deterministic IDs, rates. |
 | `schema.js` | **Field reference** for entries, summaries and payloads, limits, validation, `SchplitzError`. |
@@ -24,6 +27,8 @@ npm run build    # builds Schplitz 1 (dist/index.html) and the preview (dist/v2/
 | `ui/qr.js` | QR codes for the share sheet (qrcode-generator, MIT), rendered as one SVG path. |
 | `ui/Landing.jsx`, `ui/Site.jsx` | The landing page (purples and blues, rounded images, scroll motion; off with reduced motion), and the rule for who sees it first. `ui/theme.js` gives the app the same colours and font. |
 | `ui/` | The React screens. `App.jsx` holds the screen state and wires actions to `app.js`. `format.js` (copy, money, whose turn) and `numpad.js` (amount entry) are pure and unit-tested. `icons.js` holds Material Symbols path data (Apache-2.0, see `material-symbols-LICENSE.txt`). The app icons in `public/v2/` come from `scripts/v2-icons.cjs`. |
+
+The modules in `tally/` do not import the public `tally.js` entry point. Log operations are the foundation; views and merging depend on them. The write queue stays in `tally.js`, so all writes still use one queue per tally.
 
 ## Core rules
 
@@ -60,6 +65,7 @@ npm run lint            # ESLint, scoped to src/v2
 
 | File | Covers |
 |---|---|
+| `test/tally-protocol.test.js` | Fixed pre-refactor summary/hash fixture, canonical key ordering, unknown entries, and log integrity. |
 | `test/v2.test.js` | Tally behaviour, links, the window, disputes. |
 | `test/migrate.test.js` | v1 conversion. Fixtures are produced with the real v1 code in `src/legacy/utils.js`. |
 | `test/hardening.test.js` | Validation, hostile links, concurrency, rounding, and the other fixes from the code review. |

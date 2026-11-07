@@ -50,7 +50,7 @@ React handles the screens and Vite builds the site. The tally and link logic are
 | --- | --- |
 | `src/v2/ui/` | Screens, input, formatting, and the landing page |
 | `src/v2/app.js` | Application workflows and saving changes |
-| `src/v2/tally.js` | Payments, balances, disputes, and merging updates |
+| `src/v2/tally.js`, `src/v2/tally/` | Public tally API, queued writes, log calculations, read-only views, and merging updates |
 | `src/v2/link.js` | Key derivation, encryption, and the link-size budget |
 | `src/v2/cache.js` | IndexedDB storage on the device |
 | `src/v2/schema.js` | Protocol fields, limits, and input validation |
