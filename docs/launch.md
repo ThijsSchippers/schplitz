@@ -32,10 +32,9 @@ On Vercel: Project → Settings → Environment Variables → add `VITE_V2_AT_RO
 - [ ] Confirm the group "about even" rule (docs/v2.0.md §7).
 - [ ] Run everything:
   ```
-  npm test && npm run lint && npm run build
-  npx vite preview --port 4173 &
-  VITE_V2_AT_ROOT=true npx vite build --outDir dist-launch && npx vite preview --outDir dist-launch --port 4174 &
-  npm run e2e && npm run e2e:launch
+  npm run check
+  npm run e2e:install
+  npm run e2e
   ```
 
 ## Launch

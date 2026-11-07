@@ -2,7 +2,7 @@
 // Run against a production build:
 //   npm run build && npx vite preview --port 4173 --strictPort &
 //   node e2e/more-paths.cjs
-// Needs Playwright with Chromium (preinstalled in the Claude Code cloud environment).
+// Install Chromium with npm run e2e:install; npm run e2e manages builds and servers.
 // Env: BASE (default http://localhost:4173/v2/), SHOTS (screenshot folder, default: none).
 const { chromium } = require("playwright");
 const BASE = process.env.BASE ?? "http://localhost:4173/v2/";
@@ -103,4 +103,5 @@ const BASE = process.env.BASE ?? "http://localhost:4173/v2/";
 
   console.log("console errors:", all.flat().length ? all.flat() : "none");
   await browser.close();
+  if (all.flat().length) throw new Error("Browser console errors occurred");
 })().catch(e => { console.error("FAILED:", e.message.split("\n").slice(0, 6).join("\n")); process.exit(1); });
