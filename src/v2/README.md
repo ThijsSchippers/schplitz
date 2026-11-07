@@ -43,7 +43,9 @@ The modules in `tally/` do not import the public `tally.js` entry point. Log ope
 ## Conventions
 
 - **Functions mutate the tally in place.** Writes are queued per tally, so concurrent calls (rapid taps) are applied one after another; `settled(tally)` waits for them (sharing does). UI state should hold a version counter or a clone, not the tally object.
-- **Several tabs:** every save is announced to other tabs (`cache.onOtherTabChange`), which reload the tally instead of overwriting it later.
+- **Several tabs:** `cache.js` checks the loaded revision and writes the next one in a single IndexedDB transaction. `local.cacheRevision` and `local.cacheGeneration` never travel in links. The generation changes on recreation, so a pending write cannot restore a deleted tally. Notifications (`cache.onOtherTabChange`) refresh views; correctness does not depend on them.
+- **Application changes:** use `changeTally` to work on a private copy and publish it only after a successful save. Its callbacks must use the supplied draft and must not update UI state. Only repeatable operations opt into retries: payment additions, link merges, and sharing/backup metadata. They reload on a revision conflict, reapply the original intent, and stop after five attempts. Edits and other conflicting changes require the user to reopen and review. Sharing waits for pending application writes and encodes a snapshot.
+- **Cache upgrades:** cache version 2 excludes older clients that write without revision checks. A blocked upgrade asks the user to close other Schplitz tabs and reload. Existing records are preserved and gain revision metadata when saved.
 - **Errors are `SchplitzError` with a stable `code`** for the UI to map to a message:
   - input and permission: `invalid-input`, `not-allowed`, `not-found`;
   - links: `not-a-link`, `unsupported-version`, `cannot-decrypt`, `invalid-payload`, `too-large`.
@@ -72,6 +74,7 @@ npm run lint            # ESLint, scoped to src/v2
 | `test/migrate.test.js` | v1 conversion. Fixtures are produced with the real v1 code in `src/legacy/utils.js`. |
 | `test/hardening.test.js` | Validation, hostile links, concurrency, rounding, and the other fixes from the code review. |
 | `test/app.test.js` | The cache and the app layer: two phones from invite to dispute, currencies, converting v1 data. |
+| `test/concurrent-saves.test.js` | Atomic revision checks, simultaneous payments, stale edits, deletion/recreation, retry bounds, failed transactions, sharing, and cache upgrades. |
 | `test/payment-workflows.test.js` | Payment edits, locked exchange rates, dispute corrections, and persistence failures. |
 | `test/navigation.test.js` | Related navigation state transitions and stale reloads. |
 | `test/browser-session.test.jsx` | Session cleanup, delayed startup, current event handlers, and install prompts. |

@@ -18,9 +18,13 @@ export function navigationReducer(state, action) {
       return { ...initialNavigation, view: { name: "oldLink", share: action.share, needsName: action.needsName } };
     case "reload":
       // A tab notification can finish after the user has opened another tally.
-      if (state.current?.tally.id !== action.id) return state;
+      if (state.current?.tally.id !== action.id || state.current.tally.local?.cacheRevision !== action.fromRevision) return state;
       if (!action.tally || !action.key) return { ...initialNavigation, view: { name: "home" } };
       return { ...state, current: { tally: action.tally, key: action.key } };
+    case "committed":
+      if (state.current?.tally.id !== action.tally.id ||
+          state.current.tally.local?.cacheGeneration !== action.tally.local?.cacheGeneration) return state;
+      return { ...state, current: { ...state.current, tally: action.tally } };
     case "view":
       return { ...state, view: action.view };
     case "sheet":

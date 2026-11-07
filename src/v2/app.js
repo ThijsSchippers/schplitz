@@ -2,7 +2,7 @@
 // model, links, the phone's cache and v1 conversion. Every function that changes a
 // tally also saves it to the cache.
 
-import { createTally, joinTally, mergePayload, addPayment, renameTally, allEntries, dayNumber, settled, editPayment, acceptDispute } from "./tally.js";
+import { createTally, joinTally, mergePayload, addPayment, renameTally, allEntries, dayNumber, settled, editPayment, acceptDispute, paymentState, canonical } from "./tally.js";
 import { deriveKey, encodeLink, decodeLink, readHeader } from "./link.js";
 import {
   V1_STORAGE_KEY, convertFromDevice, defaultRate, fingerprint, looksLikeMismatchedAnswer, readV1Storage, reimportFromDevice,
@@ -28,11 +28,41 @@ export async function save(cache, tally, localChanges) {
   return tally;
 }
 
-/** Apply a domain change and persist it before reporting success to the UI. */
-export async function changeTally(cache, tally, change) {
-  const result = await change(tally);
-  await save(cache, tally);
-  return result;
+// Serialize workflows on the same in-memory object as well as checking revisions
+// across tabs. Sharing waits for these commits, including exchange-rate lookup.
+const pendingChanges = new WeakMap();
+const MAX_SAVE_ATTEMPTS = 5;
+
+/**
+ * Apply to a private copy, publishing it in memory only after storage commits.
+ * Retrying is opt-in: callbacks must be repeatable and have no UI side effects.
+ */
+export function changeTally(cache, tally, change, { retry = false, localChanges } = {}) {
+  const run = (pendingChanges.get(tally) ?? Promise.resolve()).then(async () => {
+    await settled(tally);
+    let source = tally;
+    for (let attempt = 0; attempt < MAX_SAVE_ATTEMPTS; attempt++) {
+      const draft = structuredClone(source);
+      const result = await change(draft);
+      try {
+        await save(cache, draft, localChanges);
+      } catch (error) {
+        if (!retry || error.code !== "stale-tally" || attempt === MAX_SAVE_ATTEMPTS - 1) throw error;
+        source = await cache.loadTally(tally.id);
+        if (!source || source.local?.cacheGeneration !== tally.local?.cacheGeneration ||
+            source.me.writer !== tally.me.writer) {
+          throw new SchplitzError("tally-removed", "This tally was removed or replaced in another tab. Reopen it before adding a payment.");
+        }
+        continue;
+      }
+      for (const key of Object.keys(tally)) delete tally[key];
+      Object.assign(tally, draft);
+      return result;
+    }
+    return undefined;
+  });
+  pendingChanges.set(tally, run.catch(() => {}));
+  return run;
 }
 
 // ─── starting and joining ────────────────────────────────────────────────────
@@ -60,8 +90,7 @@ export async function openLink(cache, url) {
   const [tally, key] = await Promise.all([cache.loadTally(header.tallyId), cache.loadKey(header.tallyId)]);
   if (!tally || !key) return { kind: "join", header };
   const { payload } = await decodeLink(url, key);
-  const report = mergePayload(tally, payload);
-  await save(cache, tally);
+  const report = await changeTally(cache, tally, draft => mergePayload(draft, payload), { retry: true });
   return { kind: "merged", tally, key, report };
 }
 
@@ -107,28 +136,38 @@ export async function valueInTallyCurrency(tally, amount, currency, day, rateFor
 }
 
 /** Records a payment by me (participants: who was there, default everyone), locks its rate, and remembers the currency. */
-export async function recordPayment(cache, tally, { category, amount, currency, paidOn = dayNumber(), participants, rateFor }) {
-  const { value, estimated } = await valueInTallyCurrency(tally, amount, currency, paidOn, rateFor);
-  const entry = await addPayment(tally, { category, amount, currency, value, paidOn, participants, estimated });
-  // Paying in the tally currency again ends the 12 hours of a foreign one.
-  await save(cache, tally, { lastCurrency: currency === tally.currency ? null : { c: currency, at: Date.now() } });
-  return entry;
+export function recordPayment(cache, tally, { category, amount, currency, paidOn = dayNumber(), participants, rateFor }) {
+  // Freeze the user's intent before retrying; new members or a new calendar day
+  // must not change who participated or when the payment was recorded.
+  const people = [...(participants ?? tally.members.map(member => member.id))];
+  const at = dayNumber();
+  let conversion;
+  return changeTally(cache, tally, async draft => {
+    conversion ??= await valueInTallyCurrency(draft, amount, currency, paidOn, rateFor);
+    return addPayment(draft, { category, amount, currency, ...conversion, paidOn, participants: people, at });
+  }, { retry: true, localChanges: {
+    lastCurrency: currency === tally.currency ? null : { c: currency, at: Date.now() },
+  } });
 }
 
 /** Edit a payment or accept a disputed correction, preserving its locked rate unless money/date changed. */
-export async function updatePayment(cache, tally, payment, fields, { dispute, rateFor } = {}) {
-  const day = payment.pd ?? payment.d;
-  const moneyChanged = fields.amount !== payment.a || fields.currency !== payment.c || fields.paidOn !== day;
-  const value = moneyChanged
-    ? (await valueInTallyCurrency(tally, fields.amount, fields.currency, fields.paidOn, rateFor)).value
-    : payment.v;
-  const changes = {
-    k: fields.category, a: fields.amount, c: fields.currency, v: value, p: fields.participants,
-    ...(fields.paidOn !== day ? { pd: fields.paidOn } : {}),
-  };
-  return changeTally(cache, tally, () => dispute
-    ? acceptDispute(tally, [dispute.w, dispute.s], changes)
-    : editPayment(tally, payment.s, changes));
+export function updatePayment(cache, tally, payment, fields, { dispute, rateFor } = {}) {
+  return changeTally(cache, tally, async draft => {
+    // The form can still hold an old payment after a tab notification refreshes
+    // the tally. Never silently overwrite a newer correction or deletion.
+    if (canonical(paymentState(draft, payment.w, payment.s)) !== canonical(payment))
+      throw new SchplitzError("stale-tally", "This payment changed in another tab. Reopen it and review your change before trying again.");
+    const day = payment.pd ?? payment.d;
+    const moneyChanged = fields.amount !== payment.a || fields.currency !== payment.c || fields.paidOn !== day;
+    const value = moneyChanged
+      ? (await valueInTallyCurrency(draft, fields.amount, fields.currency, fields.paidOn, rateFor)).value
+      : payment.v;
+    const correction = {
+      k: fields.category, a: fields.amount, c: fields.currency, v: value, p: fields.participants,
+      ...(fields.paidOn !== day ? { pd: fields.paidOn } : {}),
+    };
+    return dispute ? acceptDispute(draft, [dispute.w, dispute.s], correction) : editPayment(draft, payment.s, correction);
+  });
 }
 
 /** The currency preselected on the logging screen: a recent foreign one for 12 hours, else the tally's. */
@@ -155,15 +194,20 @@ export const unsharedCount = (tally) =>
  * v1 tally is a full link (migration doc, step 3); after that, normal links.
  */
 export async function prepareShare(tally, key, { origin, today = dayNumber() } = {}) {
+  await pendingChanges.get(tally);
   await settled(tally);
-  const full = Boolean(tally.v1) && !tally.local?.handshakeSent;
-  const link = await encodeLink(tally, key, { origin, today, full });
-  return { ...link, full };
+  const snapshot = structuredClone(tally);
+  const full = Boolean(snapshot.v1) && !snapshot.local?.handshakeSent;
+  const link = await encodeLink(snapshot, key, { origin, today, full });
+  return { ...link, full, sharedSeq: snapshot.writers[snapshot.me.writer].summary.s };
 }
 
 /** Call once the person actually shared (or copied) the link. */
-export function markShared(cache, tally, { full }) {
-  return save(cache, tally, { sharedSeq: tally.writers[tally.me.writer].summary.s, ...(full ? { handshakeSent: true } : {}) });
+export function markShared(cache, tally, { full, sharedSeq = tally.writers[tally.me.writer].summary.s }) {
+  return changeTally(cache, tally, draft => {
+    draft.local.sharedSeq = Math.max(draft.local.sharedSeq ?? 0, sharedSeq);
+    if (full) draft.local.handshakeSent = true;
+  }, { retry: true });
 }
 
 // ─── full copies and backups (docs §3.7, §4.1) ───────────────────────────────
@@ -178,8 +222,9 @@ export const BACKUP_EVERY_MS = 30 * 24 * 60 * 60 * 1000;
  * usually sent as a file.
  */
 export async function prepareFullCopy(tally, key, { origin } = {}) {
+  await pendingChanges.get(tally);
   await settled(tally);
-  return encodeLink(tally, key, { origin, full: true, includeProvisional: true });
+  return encodeLink(structuredClone(tally), key, { origin, full: true, includeProvisional: true });
 }
 
 /** A file holding a full copy. The content is the link itself, so opening it is opening the link. */
@@ -224,7 +269,10 @@ export function backupDue(tally, now = Date.now()) {
 }
 
 /** Call after a backup was saved or shared. */
-export const markBackedUp = (cache, tally) => save(cache, tally, { lastBackup: { entries: entryCount(tally), at: Date.now() } });
+export function markBackedUp(cache, tally, { entries = entryCount(tally) } = {}) {
+  const lastBackup = { entries, at: Date.now() };
+  return changeTally(cache, tally, draft => { draft.local.lastBackup = lastBackup; }, { retry: true });
+}
 
 // ─── old Schplitz 1 links (migration doc, step 5) ────────────────────────────
 
