@@ -7,7 +7,7 @@ const DEFAULT_BASE = process.env.DEFAULT_BASE ?? "http://localhost:4173";
 const LAUNCH = process.env.LAUNCH_BASE ?? "http://localhost:4174";
 
 (async () => {
-  const { encryptCompressed, compressToUrl } = await import("../src/utils.js");
+  const { encryptCompressed, compressToUrl } = await import("../src/legacy/utils.js");
   const expenses = [
     { i: "lz0abc12-xyz1", d: "koffie", a: 7.4, c: "EUR", p: "Sofia", t: "2026-03-14" },
     { i: "lz0abc13-xyz2", d: "bier", a: 24, c: "EUR", p: "Liam", t: "2026-03-15" },

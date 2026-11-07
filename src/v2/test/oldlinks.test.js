@@ -2,7 +2,7 @@
 // Old Schplitz 1 links opened in Schplitz 2 (migration doc, step 5). Fixtures are made by the real v1 code.
 import "fake-indexeddb/auto";
 import { describe, it, expect } from "vitest";
-import { encrypt, encryptCompressed, compressToUrl } from "../../utils.js";
+import { encrypt, encryptCompressed, compressToUrl } from "../../legacy/utils.js";
 import { openCache } from "../cache.js";
 import { readOldLink, tallyForOldLink, openOldLink, readLinkFile, convertDeviceV1, prepareShare, openLink } from "../app.js";
 import { logOf, balance } from "../tally.js";

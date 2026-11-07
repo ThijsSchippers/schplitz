@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const commands = [
-  ["Lint", "eslint/bin/eslint.js", ["src/v2"]],
+  ["Lint", "eslint/bin/eslint.js", ["src/v2", "src/shared"]],
   ["Tests", "vitest/vitest.mjs", ["run"]],
   ["Default build", "vite/bin/vite.js", ["build"], "false"],
   ["Launch build", "vite/bin/vite.js", ["build", "--outDir", "dist-launch"], "true"],

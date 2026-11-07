@@ -61,7 +61,7 @@ npm run lint            # ESLint, scoped to src/v2
 | File | Covers |
 |---|---|
 | `test/v2.test.js` | Tally behaviour, links, the window, disputes. |
-| `test/migrate.test.js` | v1 conversion. Fixtures are produced with the real v1 code in `src/utils.js`. |
+| `test/migrate.test.js` | v1 conversion. Fixtures are produced with the real v1 code in `src/legacy/utils.js`. |
 | `test/hardening.test.js` | Validation, hostile links, concurrency, rounding, and the other fixes from the code review. |
 | `test/app.test.js` | The cache and the app layer: two phones from invite to dispute, currencies, converting v1 data. |
 | `test/ui-logic.test.js` | The numpad rules and the text on screen. |

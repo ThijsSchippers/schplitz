@@ -33,7 +33,7 @@ npm run check
 
 `npm run check` runs lint, unit tests, and both builds: the default configuration in `dist/` and Schplitz 2 at the root in `dist-launch/`. It explicitly sets the launch flag for each build, regardless of your local environment. The individual `test`, `lint`, and `build` commands remain available.
 
-Lint currently covers `src/v2/`. To run the browser checks:
+Lint currently covers `src/v2/` and `src/shared/`. To run the browser checks:
 
 ```sh
 npm run e2e:install
@@ -55,7 +55,8 @@ React handles the screens and Vite builds the site. The tally and link logic are
 | `src/v2/cache.js` | IndexedDB storage on the device |
 | `src/v2/schema.js` | Protocol fields, limits, and input validation |
 | `src/v2/migrate.js` | Importing Schplitz 1 data and links |
-| `src/App.jsx`, `src/utils.js` | The original application and its supporting code |
+| `src/legacy/` | Schplitz 1, its entry point, tests, and old-link utilities |
+| `src/shared/` | Currency definitions and identity rules used by both versions |
 
 A few choices shape the implementation:
 

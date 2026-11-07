@@ -1,6 +1,6 @@
 // Home, starting a tally, joining from a link, and bringing in a Schplitz 1 tally.
 import { useRef, useState } from "react";
-import { normalizeAnswer } from "../../utils.js";
+import { normalizeAnswer } from "../../shared/identity.js";
 import { unsharedCount } from "../app.js";
 import { hero, tallyTitle, errorText } from "./format.js";
 import { Button, Chip, Field, Icon, TopBar, ICON_BUTTON } from "./components.jsx";

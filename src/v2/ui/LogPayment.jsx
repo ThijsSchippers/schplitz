@@ -1,7 +1,7 @@
 // The logging screen (docs/v2.0.md §6.2): tap a category, tap the amount, tap Add.
 import { useEffect, useRef, useState } from "react";
 import { CATEGORIES } from "../categories.js";
-import { CURRENCIES } from "../../utils.js";
+import { CURRENCIES } from "../../shared/currencies.js";
 import { usualAmount, dayNumber } from "../tally.js";
 import { decimalsOf, dayOfIsoDate, isoOfDay } from "../encoding.js";
 import { defaultCurrency, recentCurrencies, valueInTallyCurrency } from "../app.js";

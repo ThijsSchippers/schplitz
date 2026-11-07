@@ -1,11 +1,11 @@
-// Linting for Schplitz 2 (src/v2). The v1 app isn't covered yet.
+// Linting for Schplitz 2 and shared modules. The legacy app isn't covered yet.
 import globals from "globals";
 import react from "eslint-plugin-react";
 import reactHooks from "eslint-plugin-react-hooks";
 
 export default [
   {
-    files: ["src/v2/**/*.{js,jsx}"],
+    files: ["src/v2/**/*.{js,jsx}", "src/shared/**/*.js"],
     plugins: { react, "react-hooks": reactHooks },
     languageOptions: {
       ecmaVersion: 2024, sourceType: "module",

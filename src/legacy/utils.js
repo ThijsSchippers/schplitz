@@ -1,19 +1,9 @@
-export const CURRENCIES = {
-  EUR:{ symbol:"€",  name:"Euro" },
-  USD:{ symbol:"$",  name:"US Dollar" },
-  ALL:{ symbol:"L",  name:"Albanian Lek" },
-  AED:{ symbol:"د.إ",name:"UAE Dirham" },
-  NOK:{ symbol:"kr", name:"Norwegian Krone" },
-  SEK:{ symbol:"kr", name:"Swedish Krona" },
-  THB:{ symbol:"฿",  name:"Thai Baht" },
-};
-
-export const FALLBACK_RATES = { EUR:1, USD:1.04, ALL:113.5, AED:3.82, NOK:11.80, SEK:11.45, THB:38.0 };
+import { CURRENCIES, FALLBACK_RATES } from "../shared/currencies.js";
+export { CURRENCIES, FALLBACK_RATES } from "../shared/currencies.js";
+export { MAX_NAME_LEN, MAX_QUESTION_LEN, normalizeAnswer } from "../shared/identity.js";
 
 export const TOAST_DURATION     = 2400;
 export const PBKDF2_ITERS       = 200_000;
-export const MAX_NAME_LEN       = 50;
-export const MAX_QUESTION_LEN   = 200;
 export const MAX_DESCRIPTION_LEN = 30;
 export const MAX_SETTLEMENT_LEN  = 500;
 
@@ -49,7 +39,6 @@ const NAME_PAIRS = [
 ];
 export const [PLACEHOLDER_ME, PLACEHOLDER_OTHER] = NAME_PAIRS[Math.floor(Math.random() * NAME_PAIRS.length)];
 
-export const normalizeAnswer = (s) => s.toLowerCase().replace(/\s+/g, "");
 
 export const fmt = (n, c) => {
   const s = (CURRENCIES[c] || CURRENCIES.EUR).symbol;
