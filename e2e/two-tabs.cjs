@@ -8,7 +8,10 @@ const { chromium } = require("playwright");
   for (const ctx of [sofiaCtx, liamCtx]) ctx.on("page", page => {
     page.on("pageerror", error => errors.push(error.message));
   });
-  for (const ctx of [sofiaCtx, liamCtx]) await ctx.addInitScript(() => sessionStorage.setItem("schplitz2Opened", "1"));
+  for (const ctx of [sofiaCtx, liamCtx]) await ctx.addInitScript(() => {
+    // Init scripts also run on the opaque about:blank page before navigation.
+    if (location.protocol === "http:" || location.protocol === "https:") sessionStorage.setItem("schplitz2Opened", "1");
+  });
   const s = await sofiaCtx.newPage(), l1 = await liamCtx.newPage();
   const link = async (p) => { await p.getByRole("button", { name: "Copy link" }).click(); const u = await p.getByRole("textbox", { name: "Link" }).inputValue(); await p.getByRole("button", { name: "Close" }).click(); return u; };
   await s.goto((process.env.BASE ?? "http://localhost:4173/v2/"));
