@@ -1,0 +1,31 @@
+/* Shared by the landing page and app. Keep layout and motion rules with their screens. */
+:root {
+  --schplitz-bg: #F5F4FE;
+  --schplitz-card: #FFFFFF;
+  --schplitz-card-border: var(--schplitz-lav);
+  --schplitz-field: var(--schplitz-card);
+  --schplitz-field-border: #CFC9F3;
+  --schplitz-text: #3C315B;
+  --schplitz-soft: #4A4170;
+  --schplitz-muted: #5F5688;
+  --schplitz-accent: #2F5FD0;
+  --schplitz-accent-tint: #E6F0FF;
+  --schplitz-accent-border: #8FA8F5;
+  --schplitz-on-accent: var(--schplitz-cream);
+  --schplitz-other: #7048C8;
+  --schplitz-danger: #B3261E;
+  --schplitz-danger-border: #B3261E55;
+  --schplitz-danger-fill: var(--schplitz-danger);
+  --schplitz-ok: #2E7D32;
+  --schplitz-navy: #1B2A55;
+  --schplitz-navy-end: #2B2F7A;
+  --schplitz-mist: #D6E2FF;
+  --schplitz-cream: #FFFDF8;
+  --schplitz-purple: #AB9FF2;
+  --schplitz-lav: #E2DFFE;
+  --schplitz-butter: #FFFFC4;
+  --schplitz-paper: #FDFCFE;
+  --schplitz-sky: #CFE3FF;
+  --schplitz-blue: #4A87F2;
+  --schplitz-font: ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}

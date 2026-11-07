@@ -21,7 +21,7 @@ const BUTTON = {
   primary: { background: C.accent, color: C.onAccent, boxShadow: "0 6px 16px rgba(47,95,208,.25)" },
   secondary: { background: C.card, color: C.text, border: `1px solid ${C.cardBorder}` },
   ghost: { background: "transparent", color: C.soft, border: `1px solid ${C.fieldBorder}` },
-  danger: { background: "transparent", color: C.danger, border: `1px solid ${C.danger}55` },
+  danger: { background: "transparent", color: C.danger, border: `1px solid ${C.dangerBorder}` },
 };
 
 export function Button({ variant = "primary", icon, children, style, disabled, ...rest }) {
