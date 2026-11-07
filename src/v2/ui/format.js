@@ -123,6 +123,7 @@ export function errorText(err) {
     case "unsupported-version": return "This link is from a newer version of Schplitz. Reload the page to update.";
     case "invalid-payload": return "This link is damaged and can't be opened.";
     // These messages are written for people where they're raised.
+    case "stale-tally": case "tally-removed": case "cache-upgrade-blocked":
     case "answer-mismatch": case "too-large": case "invalid-input": case "not-allowed": case "not-found": return err.message;
     default: return "Something went wrong. Try again.";
   }

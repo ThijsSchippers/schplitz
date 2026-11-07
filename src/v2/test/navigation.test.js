@@ -53,3 +53,16 @@ it("ignores payment completion after leaving or reopening the payment screen", (
   const reopened = reduce(reduce(editing, { type: "cancelPayment" }), { type: "view", view: { name: "log" } });
   expect(reduce(reopened, saved)).toBe(reopened);
 });
+
+
+it("does not let a delayed tab reload replace a local commit", () => {
+  const original = { ...tally, local: { cacheRevision: "one", cacheGeneration: "generation" } };
+  let state = reduce(initialNavigation, { type: "openTally", tally: original, key: "key" });
+  const committed = { ...original, local: { ...original.local, cacheRevision: "three" } };
+  state = reduce(state, { type: "committed", tally: committed });
+  const late = { ...original, local: { ...original.local, cacheRevision: "two" } };
+  expect(reduce(state, { type: "reload", id: tally.id, tally: late, key: "key", fromRevision: "one" })).toBe(state);
+  expect(state.current.tally).toBe(committed);
+  const replacement = { ...original, local: { cacheRevision: "four", cacheGeneration: "replacement" } };
+  expect(reduce(state, { type: "committed", tally: replacement })).toBe(state);
+});

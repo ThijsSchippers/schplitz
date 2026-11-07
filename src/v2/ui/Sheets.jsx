@@ -4,7 +4,7 @@ import { CATEGORIES, TILE_ORDER } from "../categories.js";
 import { usualAmount, QUERY_REASONS } from "../tally.js";
 import { prepareShare, prepareFullCopy, fullCopyFile } from "../app.js";
 import { LINK_BUDGET } from "../link.js";
-import { money, nameOf, othersLabel, tallyTitle, payments, shareMessage, INVITE_MESSAGE, QUERY_CHIPS } from "./format.js";
+import { errorText, money, nameOf, othersLabel, tallyTitle, payments, shareMessage, INVITE_MESSAGE, QUERY_CHIPS } from "./format.js";
 import { qrPath } from "./qr.js";
 import { Button, Chip, Icon, Sheet } from "./components.jsx";
 import { C, S } from "./theme.js";
@@ -32,7 +32,7 @@ export function ShareSheet({ tally, cryptoKey, origin, request, onShared, onClos
   async function share() {
     try {
       await navigator.share({ title: "Schplitz", text, url: link.url });
-      onShared(link);
+      await onShared(link);
     } catch (err) {
       if (err?.name !== "AbortError") setError(err);
     }
@@ -40,9 +40,9 @@ export function ShareSheet({ tally, cryptoKey, origin, request, onShared, onClos
   async function copy() {
     try {
       await navigator.clipboard.writeText(`${text}\n${link.url}`);
+      await onShared(link);
       setCopied(true);
-      onShared(link);
-    } catch { setError(new Error("copy")); }
+    } catch (err) { setError(err); }
   }
 
   return (
@@ -67,7 +67,7 @@ export function ShareSheet({ tally, cryptoKey, origin, request, onShared, onClos
           <figcaption style={S.muted}>Point the other phone's camera at this.</figcaption>
         </figure>
       )}
-      {error && <p role="alert" style={{ color: C.danger, fontSize: 13, margin: 0 }}>Couldn't share. Copy the link instead.</p>}
+      {error && <p role="alert" style={{ color: C.danger, fontSize: 13, margin: 0 }}>{error.code ? errorText(error) : "Couldn't share. Copy the link instead."}</p>}
       {!request.invite && <Button variant="ghost" onClick={onClose}>Later</Button>}
     </Sheet>
   );
@@ -77,10 +77,18 @@ export function ShareSheet({ tally, cryptoKey, origin, request, onShared, onClos
 export function Review({ tally, report, onNotMe, onAsk, onFullCopy, onClose }) {
   const [done, setDone] = useState(new Set());
   const [asking, setAsking] = useState(null);
+  const [busy, setBusy] = useState(false);
   const [acted, setActed] = useState(false);   // raised a "Not me" or question: offer to share afterwards
   const close = () => onClose(acted);
   const items = report.involvingMe.filter(e => !done.has(`${e.w}:${e.s}`));
   const finish = (e) => setDone(d => new Set(d).add(`${e.w}:${e.s}`));
+  async function respond(entry, action) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (await action()) { setActed(true); finish(entry); setAsking(null); }
+    } finally { setBusy(false); }
+  }
   const sender = report.newEntries[0] ? nameOf(tally, tally.writers[report.newEntries[0].w]?.member) : othersLabel(tally);
 
   return (
@@ -99,12 +107,12 @@ export function Review({ tally, report, onNotMe, onAsk, onFullCopy, onClose }) {
             </p>
             {asking === e ? (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-                {QUERY_REASONS.map(r => <Chip key={r} on={false} onClick={() => { onAsk(e, r); setActed(true); finish(e); setAsking(null); }}>{QUERY_CHIPS[r]}</Chip>)}
+                {QUERY_REASONS.map(r => <Chip key={r} on={false} disabled={busy} onClick={() => respond(e, () => onAsk(e, r))}>{QUERY_CHIPS[r]}</Chip>)}
               </div>
             ) : (
               <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
                 <Button variant="secondary" style={{ flex: 1, padding: 10, fontSize: 13 }} onClick={() => finish(e)}>Looks right</Button>
-                <Button variant="secondary" style={{ flex: 1, padding: 10, fontSize: 13 }} onClick={() => { onNotMe(e); setActed(true); finish(e); }}>Not me</Button>
+                <Button variant="secondary" style={{ flex: 1, padding: 10, fontSize: 13 }} disabled={busy} onClick={() => respond(e, () => onNotMe(e))}>Not me</Button>
                 <Button variant="secondary" style={{ flex: 1, padding: 10, fontSize: 13 }} onClick={() => setAsking(e)}>Ask about it</Button>
               </div>
             )}
@@ -198,17 +206,17 @@ export function FullCopySheet({ tally, cryptoKey, origin, mode, onDone, onClose 
   const canShareFile = Boolean(file) && typeof navigator.canShare === "function" && navigator.canShare({ files: [file] });
 
   async function shareFile() {
-    try { await navigator.share({ files: [file], title: "Schplitz full copy" }); onDone(); }
+    try { await navigator.share({ files: [file], title: "Schplitz full copy" }); await onDone(link); }
     catch (err) { if (err?.name !== "AbortError") setError(err); }
   }
-  function download() {
+  async function download() {
     const url = URL.createObjectURL(file);
     const a = Object.assign(document.createElement("a"), { href: url, download: file.name });
     document.body.append(a);
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
-    onDone();
+    try { await onDone(link); } catch (err) { setError(err); }
   }
 
   return (
@@ -223,7 +231,7 @@ export function FullCopySheet({ tally, cryptoKey, origin, mode, onDone, onClose 
       {link && link.length <= LINK_BUDGET && (
         <p style={S.muted}>A normal link would also do here. Any link brings back the balance and the last 30 days.</p>
       )}
-      {error && <p role="alert" style={{ color: C.danger, fontSize: 13, margin: 0 }}>Couldn't make the file. Try again.</p>}
+      {error && <p role="alert" style={{ color: C.danger, fontSize: 13, margin: 0 }}>{error.code ? errorText(error) : "Couldn't make the file. Try again."}</p>}
     </Sheet>
   );
 }

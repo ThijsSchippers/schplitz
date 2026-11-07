@@ -112,8 +112,9 @@ export default function App({ rateFor = defaultRate, cacheName, firstView = "hom
     onOtherTab: async (c, id, signal) => {
       await refresh(c, signal);
       if (signal.aborted || currentRef.current?.tally.id !== id) return;
+      const fromRevision = currentRef.current.tally.local?.cacheRevision;
       const [tally, key] = await Promise.all([c.loadTally(id), c.loadKey(id)]);
-      if (!signal.aborted) dispatch({ type: "reload", id, tally, key });
+      if (!signal.aborted) dispatch({ type: "reload", id, tally, key, fromRevision });
     },
     onError: error => { dispatch({ type: "home" }); flash(errorText(error), true); },
   });
@@ -124,11 +125,14 @@ export default function App({ rateFor = defaultRate, cacheName, firstView = "hom
   const change = useCallback(async (fn, { ok, share } = {}) => {
     const { tally } = currentRef.current;
     try {
-      await changeTally(cache, tally, fn);
+      const result = await changeTally(cache, tally, fn);
+      dispatch({ type: "committed", tally });
       if (ok) flash(ok);
       if (share) dispatch({ type: "sheet", sheet: { kind: "share", request: share } });
+      return result;
     } catch (err) {
       flash(errorText(err), true);
+      return undefined;
     } finally {
       rerender();
     }
@@ -206,6 +210,7 @@ export default function App({ rateFor = defaultRate, cacheName, firstView = "hom
     try {
       if (edit) await updatePayment(cache, tally, edit, fields, { dispute, rateFor });
       else await recordPayment(cache, tally, { ...fields, rateFor });
+      dispatch({ type: "committed", tally });
       dispatch({ type: "paymentSaved", id: tally.id, fromView: view, editing: Boolean(edit), category: fields.category });
     } catch (err) {
       flash(errorText(err), true);
@@ -215,7 +220,11 @@ export default function App({ rateFor = defaultRate, cacheName, firstView = "hom
   }
 
   const actions = current && {
-    edit: (p) => setView({ name: "log", edit: p }),
+    edit: (p) => {
+      const payment = paymentState(current.tally, p.w, p.s);
+      if (payment) setView({ name: "log", edit: payment });
+      else flash("That payment has been deleted.", true);
+    },
     remove: (p) => change(t => voidPayment(t, p.s), { ok: "Deleted", share: {} }),
     notMe: (p) => change(t => notMe(t, [p.w, p.s]), { share: { message: MESSAGES.notMe } }),
     ask: (p, reason) => change(t => askAbout(t, [p.w, p.s], reason), { share: { message: MESSAGES.question } }),
@@ -228,8 +237,11 @@ export default function App({ rateFor = defaultRate, cacheName, firstView = "hom
     paidBack: (from, to, value) => change(t => addPaidBack(t, { from, to, value }), { ok: "Recorded", share: {} }),
     sort: () => setSheet({ kind: "sort" }),
     // They appear on the other phones with the next link. Whoever's marked as here stays marked.
-    addPerson: (name) => change(t => { const m = addMember(t, name); dispatch({ type: "memberAdded", id: m.id }); },
-      { ok: `Added ${name.trim()}`, share: { message: `I added ${name.trim()} to our tally.` } }),
+    addPerson: async (name) => {
+      const member = await change(t => addMember(t, name),
+        { ok: `Added ${name.trim()}`, share: { message: `I added ${name.trim()} to our tally.` } });
+      if (member) dispatch({ type: "memberAdded", id: member.id });
+    },
     rename: (name) => change(t => renameTally(t, name), { ok: "Saved", share: {} }),
     fullCopy: () => setSheet({ kind: "fullCopy", mode: "send" }),
     forget: async () => { await cache.forgetTally(current.tally.id); await goHome(); flash("Removed from this phone"); },
@@ -287,7 +299,7 @@ export default function App({ rateFor = defaultRate, cacheName, firstView = "hom
       </main>
       {sheet?.kind === "share" && current && (
         <ShareSheet tally={current.tally} cryptoKey={current.key} origin={linkOrigin()} request={sheet.request}
-          onShared={async (link) => { await markShared(cache, current.tally, link); rerender(); }}
+          onShared={async (link) => { await markShared(cache, current.tally, link); dispatch({ type: "committed", tally: current.tally }); }}
           onClose={() => setSheet(null)} />
       )}
       {sheet?.kind === "review" && current && (
@@ -299,7 +311,7 @@ export default function App({ rateFor = defaultRate, cacheName, firstView = "hom
       )}
       {sheet?.kind === "fullCopy" && current && (
         <FullCopySheet tally={current.tally} cryptoKey={current.key} origin={linkOrigin()} mode={sheet.mode}
-          onDone={async () => { if (sheet.mode === "backup") { await markBackedUp(cache, current.tally); rerender(); } }}
+          onDone={async (link) => { if (sheet.mode === "backup") { await markBackedUp(cache, current.tally, { entries: link.entries }); dispatch({ type: "committed", tally: current.tally }); } }}
           onClose={() => setSheet(null)} />
       )}
       {sheet?.kind === "sort" && current && (

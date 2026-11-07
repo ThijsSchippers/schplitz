@@ -42,6 +42,12 @@ On Vercel: Project → Settings → Environment Variables → add `VITE_V2_AT_RO
 1. Set `VITE_V2_AT_ROOT=true` for Production and redeploy.
 2. Open `/`, `/v2/` and `/classic/`; open an old `#share=` link from a chat.
 
+## Cache upgrade
+
+The concurrency fix opens IndexedDB cache version 2. It retains existing tallies and keys; no shared-link or encryption format changes. A tab still running the old code must close before the upgrade can complete. The new app reports this and asks the user to reload afterward. Once upgraded, old version-1 cache clients cannot reopen it.
+
+Keep cache version 2 and its revision checks in any code rollback. Do not downgrade the cache version or delete user data to make an older build run. The root-routing rollback below is independent of the cache upgrade.
+
 ## Rolling back
 
 Remove `VITE_V2_AT_ROOT` (or set it to anything but `true`) and redeploy. `/` is Schplitz 1 again.
